@@ -19,7 +19,7 @@ public class WebConfig {
         config.setAllowedOrigins(List.of(
                 "http://localhost:5173",
                 "http://127.0.0.1:5173",
-                "https://nagarik-frontend.onrender.com"
+                "https://nagarik-frontend.onrender.com/"
         ));
 
         config.setAllowedMethods(List.of(
