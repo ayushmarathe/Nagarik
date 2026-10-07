@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Nagarik · Ward dashboard</title>
+    <meta
+      name="description"
+      content="The ward worklist: pick up reports, commit to a date, and hand finished work back to the people who raised it."
+    />
+
+    <!-- A dashboard has no business in anyone's search results. -->
+    <meta name="robots" content="noindex" />
+
+    <meta name="theme-color" content="#f2f6f6" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#081416" media="(prefers-color-scheme: dark)" />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@400..800&family=Public+Sans:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+
+    <script>
+      /*
+        Same pre-paint theme read as index.html, and duplicated for the same
+        reason: it has to run before the first byte of CSS is applied, which
+        rules out anything imported as a module. A moderator who set dark on the
+        board should not get a white flash when they open the dashboard.
+      */
+      (function () {
+        var theme;
+        try {
+          var stored = localStorage.getItem('nagarik.theme');
+          if (stored === 'light' || stored === 'dark') theme = stored;
+        } catch (e) {
+          /* Storage blocked. Fall through to the system preference. */
+        }
+        if (!theme) {
+          theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        }
+        document.documentElement.setAttribute('data-theme', theme);
+        document.documentElement.style.colorScheme = theme;
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/admin.jsx"></script>
+  </body>
+</html>

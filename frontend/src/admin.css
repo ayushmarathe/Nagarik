@@ -1,0 +1,714 @@
+/* ==========================================================================
+   Nagarik — ward dashboard
+
+   A second document, not a second page. It borrows the palette, the fonts and
+   the primitives from styles.css and nothing else: the board is a feed built
+   for reading, and this is a worklist built for clearing.
+
+   So the two look related and behave differently. Everything here is tighter -
+   smaller radii, hairlines instead of shadows, tabular numbers, rows sized to
+   fit rather than to breathe. A moderator working through twenty reports
+   should be able to see twenty reports.
+
+   Every class is prefixed adm- so the two stylesheets can never collide, which
+   matters because both are loaded on this page.
+   ========================================================================== */
+
+/* The one wash of brand colour the board puts behind its header is a reading
+   flourish. Here it would sit behind a table. */
+body::before {
+  display: none;
+}
+
+.adm {
+  /* Was 94rem (1504px), which is wider than the laptop most of this will be
+     read on - so on a 1440 screen the table ran into both edges with only the
+     1.5rem padding between it and the bezel. 88rem leaves a real margin at
+     1440 and still gives the five columns more room than they need. */
+  --adm-shell: 88rem;
+  min-height: 100vh;
+}
+
+/* --------------------------------------------------------------------------
+   Top bar
+   -------------------------------------------------------------------------- */
+
+.adm-top {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--line);
+}
+
+.adm-top-inner {
+  max-width: var(--adm-shell);
+  margin: 0 auto;
+  padding: 0.6rem 1.5rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.adm-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: inherit;
+  text-decoration: none;
+  min-width: 0;
+}
+
+.adm-brand-name {
+  font-family: 'Bricolage Grotesque', sans-serif;
+  font-weight: 700;
+  font-size: var(--t-lg);
+  letter-spacing: -0.02em;
+}
+
+/* The board's mark is 30px and sets the height of a header built for reading.
+   Here the bar is chrome above a table, so it gives the height back. */
+.adm-brand .brand-mark {
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+}
+
+.adm-brand-sep {
+  width: 1px;
+  height: 14px;
+  background: var(--line-strong);
+}
+
+.adm-brand-what {
+  font-size: var(--t-md);
+  color: var(--ink-faint);
+  white-space: nowrap;
+}
+
+.adm-top-actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+}
+
+.adm-who {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding-left: 0.35rem;
+}
+
+.adm-who-name {
+  font-size: var(--t-sm);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.adm-body {
+  position: relative;
+  max-width: var(--adm-shell);
+  margin: 0 auto;
+  padding: 1.5rem 1.5rem 5rem;
+}
+
+/* --------------------------------------------------------------------------
+   The counters
+
+   Five piles of work. Each is a button, because a number you cannot open is a
+   number somebody has to go and find the rows for by hand.
+   -------------------------------------------------------------------------- */
+
+.adm-strip {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0.7rem;
+  margin-bottom: 1.5rem;
+}
+
+.adm-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  padding: 0.8rem 0.9rem;
+  border: 1px solid var(--line);
+  border-radius: var(--r-input);
+  background: var(--surface);
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  transition: border-color 0.16s var(--ease), background 0.16s var(--ease);
+}
+
+.adm-stat:hover {
+  border-color: var(--line-strong);
+}
+
+.adm-stat.is-on {
+  border-color: var(--brand);
+  box-shadow: inset 0 0 0 1px var(--brand);
+}
+
+.adm-stat-count {
+  font-family: 'Bricolage Grotesque', sans-serif;
+  font-size: var(--t-3xl);
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+}
+
+.adm-stat-label {
+  font-size: var(--t-sm);
+  font-weight: 600;
+}
+
+.adm-stat-hint {
+  font-size: var(--t-xs);
+  color: var(--ink-faint);
+}
+
+/* Tone is about the work, not the number. A pile of nothing stays grey however
+   alarming its name is - "0 past their date" should read as good news, and it
+   only reads that way if red means something. */
+.adm-stat[data-tone='wants'] .adm-stat-count {
+  color: var(--brand);
+}
+
+.adm-stat[data-tone='warn'] .adm-stat-count {
+  color: var(--warn);
+}
+
+.adm-stat[data-tone='bad'] .adm-stat-count {
+  color: var(--bad);
+}
+
+.adm-stat[data-tone='good'] .adm-stat-count {
+  color: var(--good);
+}
+
+.adm-stat[data-tone='calm'] .adm-stat-count {
+  color: var(--ink-faint);
+}
+
+/* Placeholders while the counts are in flight. Carries .adm-stat too, so the
+   strip does not resize when the real numbers land - only the cursor and the
+   fill have to be taken back. */
+.adm-stat-blank {
+  height: 5.4rem;
+  background: var(--surface-sunk);
+  cursor: default;
+}
+
+/* --------------------------------------------------------------------------
+   Tabs and controls
+   -------------------------------------------------------------------------- */
+
+.adm-tabs {
+  display: flex;
+  gap: 0.25rem;
+  flex-wrap: wrap;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 0.9rem;
+}
+
+.adm-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.42rem;
+  padding: 0.5rem 0.75rem;
+  margin-bottom: -1px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: none;
+  color: var(--ink-soft);
+  font: inherit;
+  font-size: var(--t-md);
+  font-weight: 500;
+  cursor: pointer;
+  transition: color 0.16s var(--ease), border-color 0.16s var(--ease);
+}
+
+.adm-tab:hover {
+  color: var(--ink);
+}
+
+.adm-tab.is-on {
+  color: var(--ink);
+  border-bottom-color: var(--brand);
+  font-weight: 600;
+}
+
+.adm-tab-count {
+  padding: 0.02rem 0.36rem;
+  border-radius: var(--r-chip);
+  background: var(--surface-sunk);
+  font-size: var(--t-xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-faint);
+}
+
+.adm-tab.is-on .adm-tab-count {
+  background: var(--brand-wash);
+  color: var(--brand);
+}
+
+.adm-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.9rem;
+}
+
+.adm-controls .select {
+  width: auto;
+  min-width: 9rem;
+  padding-top: 0.42rem;
+  padding-bottom: 0.42rem;
+  font-size: var(--t-sm);
+}
+
+.adm-search {
+  flex: 1 1 18rem;
+  min-width: 0;
+  padding-top: 0.42rem;
+  padding-bottom: 0.42rem;
+  font-size: var(--t-sm);
+}
+
+.adm-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: var(--t-sm);
+  color: var(--ink-soft);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.adm-check input {
+  accent-color: var(--brand);
+  width: 15px;
+  height: 15px;
+}
+
+.adm-count {
+  font-size: var(--t-sm);
+  color: var(--ink-faint);
+  margin-bottom: 0.5rem;
+}
+
+/* --------------------------------------------------------------------------
+   The queue
+
+   A grid rather than a <table>, because each row needs to open into a block of
+   prose underneath itself, and a table row that contains a paragraph is a
+   fight with the layout algorithm every time.
+   -------------------------------------------------------------------------- */
+
+.adm-table {
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+  background: var(--surface);
+  overflow: hidden;
+}
+
+.adm-head,
+.adm-row {
+  display: grid;
+  /* Backing was 5.5rem, which is narrower than the text it has to hold:
+     "backers · 3 replies" broke onto three lines in every row and turned a
+     scannable column into a paragraph. These widths are set from the longest
+     real string each column carries, not from even division. */
+  grid-template-columns:
+    minmax(0, 1fr)
+    7.25rem
+    7.5rem
+    10rem
+    minmax(11rem, auto);
+  gap: 1rem;
+  align-items: start;
+}
+
+.adm-head {
+  padding: 0.6rem 1rem 0.6rem 1.2rem;
+  background: var(--surface-sunk);
+  border-bottom: 1px solid var(--line);
+  font-size: var(--t-xs);
+  font-weight: 600;
+  /* Sentence case, untracked. Tracked-out capitals are the reflex for a column
+     header and they cost real legibility at 12px - capitals have no ascenders
+     or descenders to tell letters apart by, which is exactly what a header
+     scanned at a glance needs. */
+  color: var(--ink-faint);
+}
+
+.adm-row {
+  position: relative;
+  padding: 0.8rem 1rem 0.8rem 1.2rem;
+  border-bottom: 1px solid var(--line);
+  transition: background 0.16s var(--ease);
+}
+
+.adm-row:last-child {
+  border-bottom: 0;
+}
+
+.adm-row:hover {
+  background: var(--surface-sunk);
+}
+
+/* The category colour, as a rule down the left edge. Enough to group a run of
+   water reports by eye without adding a column for it. */
+.adm-row::before {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: var(--stripe);
+  opacity: 0.75;
+}
+
+.adm-row.is-open {
+  background: var(--surface-sunk);
+}
+
+/* Actioned, and no longer a member of this tab. Dimmed rather than removed:
+   pulling a row out from under the cursor loses the place of whoever is
+   working down the list. */
+.adm-row.is-moved {
+  opacity: 0.62;
+}
+
+.adm-cell {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.adm-cell-note {
+  font-size: var(--t-xs);
+  color: var(--ink-faint);
+  line-height: 1.35;
+}
+
+.adm-title {
+  border: 0;
+  background: none;
+  padding: 0;
+  text-align: left;
+  font: inherit;
+  font-weight: 600;
+  font-size: var(--t-md);
+  line-height: 1.35;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.adm-title:hover {
+  color: var(--brand);
+}
+
+.adm-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  margin-top: 0.25rem;
+}
+
+.adm-where,
+.adm-when {
+  font-size: var(--t-xs);
+  color: var(--ink-faint);
+}
+
+.adm-moved {
+  margin-top: 0.35rem;
+  font-size: var(--t-xs);
+  color: var(--good);
+}
+
+.adm-backing-count,
+.adm-eta-date,
+.adm-check-tally {
+  font-family: 'Bricolage Grotesque', sans-serif;
+  font-size: var(--t-lg);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+}
+
+.adm-backing-count {
+  color: var(--signal);
+}
+
+.adm-cell-eta[data-late='yes'] .adm-eta-date,
+.adm-cell-eta[data-late='yes'] .adm-cell-note {
+  color: var(--bad);
+  font-weight: 600;
+}
+
+.adm-blank {
+  color: var(--line-strong);
+}
+
+.adm-wait {
+  font-size: var(--t-sm);
+  color: var(--ink-faint);
+  font-style: italic;
+}
+
+.adm-cell-do {
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  align-items: center;
+}
+
+/* --------------------------------------------------------------------------
+   The opened row
+   -------------------------------------------------------------------------- */
+
+.adm-expand {
+  grid-column: 1 / -1;
+  margin-top: 0.8rem;
+  padding-top: 0.8rem;
+  border-top: 1px dashed var(--line-strong);
+  animation: fade 0.18s var(--ease);
+}
+
+.adm-expand-body {
+  color: var(--ink-soft);
+  font-size: var(--t-md);
+  max-width: 78ch;
+  white-space: pre-wrap;
+  margin-bottom: 0.8rem;
+}
+
+.adm-facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+  gap: 0.55rem 1.5rem;
+  margin: 0 0 0.8rem;
+}
+
+.adm-facts dt {
+  font-size: var(--t-xs);
+  font-weight: 600;
+  color: var(--ink-faint);
+}
+
+.adm-facts dd {
+  margin: 0;
+  font-size: var(--t-sm);
+  color: var(--ink-soft);
+}
+
+.adm-open {
+  font-size: var(--t-sm);
+  color: var(--brand);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* --------------------------------------------------------------------------
+   Paging, loading, and the closed doors
+   -------------------------------------------------------------------------- */
+
+.adm-pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.9rem;
+  margin-top: 1.1rem;
+}
+
+.adm-pager-at {
+  font-size: var(--t-sm);
+  color: var(--ink-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.adm-table-loading {
+  padding: 0.6rem;
+}
+
+.adm-skeleton {
+  height: 3.1rem;
+  border-radius: var(--r-input);
+  margin-bottom: 0.4rem;
+  background: linear-gradient(
+    90deg,
+    var(--surface-sunk) 25%,
+    color-mix(in srgb, var(--surface-sunk) 55%, var(--line)) 37%,
+    var(--surface-sunk) 63%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.4s linear infinite;
+}
+
+.adm-gate {
+  display: grid;
+  place-items: center;
+  min-height: 100vh;
+  padding: 2rem 1.5rem;
+}
+
+.adm-gate-card {
+  max-width: 32rem;
+  padding: 2rem;
+  text-align: center;
+}
+
+.adm-gate-head {
+  font-family: 'Bricolage Grotesque', sans-serif;
+  font-size: var(--t-2xl);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin-bottom: 0.5rem;
+}
+
+.adm-gate-line {
+  color: var(--ink-soft);
+  font-size: var(--t-md);
+  margin-bottom: 1.2rem;
+}
+
+/* --------------------------------------------------------------------------
+   The date dialog
+   -------------------------------------------------------------------------- */
+
+.adm-dialog-subject {
+  padding: 0.55rem 0.7rem;
+  margin-bottom: 1.1rem;
+  border-left: 3px solid var(--stripe, var(--brand));
+  border-radius: 0 var(--r-chip) var(--r-chip) 0;
+  background: var(--surface-sunk);
+  font-weight: 600;
+  font-size: var(--t-md);
+}
+
+.adm-quick {
+  display: flex;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+  margin-top: 0.45rem;
+}
+
+.adm-quick-btn {
+  padding: 0.25rem 0.55rem;
+  border: 1px solid var(--line);
+  border-radius: var(--r-chip);
+  background: var(--surface);
+  color: var(--ink-soft);
+  font: inherit;
+  font-size: var(--t-sm);
+  cursor: pointer;
+  transition: border-color 0.16s var(--ease), color 0.16s var(--ease);
+}
+
+.adm-quick-btn:hover {
+  border-color: var(--line-strong);
+  color: var(--ink);
+}
+
+.adm-quick-btn.is-on {
+  border-color: var(--brand);
+  background: var(--brand-wash);
+  color: var(--brand);
+  font-weight: 600;
+}
+
+/* --------------------------------------------------------------------------
+   Narrower screens
+
+   The queue stops being a table well before the page stops being usable. Below
+   the first breakpoint each row becomes a small card with its own labels,
+   which is the only honest way to keep four columns of numbers readable on a
+   laptop half-screen.
+   -------------------------------------------------------------------------- */
+
+@media (max-width: 76rem) {
+  .adm-strip {
+    grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr));
+  }
+
+  .adm-head {
+    display: none;
+  }
+
+  .adm-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.55rem;
+    padding: 0.9rem 1rem 0.9rem 1.2rem;
+  }
+
+  /* Without the header there is nothing to say what a bare number means, so
+     the cells grow their own labels. */
+  .adm-cell-backing,
+  .adm-cell-eta,
+  .adm-cell-check {
+    flex-direction: row;
+    align-items: baseline;
+    gap: 0.4rem;
+  }
+
+  .adm-cell-backing::before {
+    content: 'Backing';
+  }
+
+  .adm-cell-eta::before {
+    content: 'Promised';
+  }
+
+  .adm-cell-check::before {
+    content: 'Checking';
+  }
+
+  .adm-cell-backing::before,
+  .adm-cell-eta::before,
+  .adm-cell-check::before {
+    font-size: var(--t-xs);
+    font-weight: 600;
+    color: var(--ink-faint);
+    min-width: 5.2rem;
+  }
+
+  /* A cell with nothing in it is noise once it has a label in front of it. */
+  .adm-cell-eta:has(.adm-blank),
+  .adm-cell-check:has(.adm-blank) {
+    display: none;
+  }
+}
+
+@media (max-width: 48rem) {
+  .adm-top-inner,
+  .adm-body {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+
+  .adm-brand-sep,
+  .adm-brand-what,
+  .adm-who-name {
+    display: none;
+  }
+
+  .adm-stat-hint {
+    display: none;
+  }
+
+  .adm-controls .select,
+  .adm-search {
+    flex: 1 1 100%;
+    width: 100%;
+  }
+}

@@ -1,0 +1,975 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Nagarik — design preview</title>
+
+    <!--
+      A LOOK AT THE DESIGN WITH NOTHING INSTALLED.
+
+      Double-click this file. That is the whole procedure: no Postgres, no Maven,
+      no npm, no build step.
+
+      It loads the real stylesheet from frontend/src/styles.css and uses the same
+      markup and class names the React components produce, so what you see here is
+      what the app renders. The data is a copy of what DataSeeder writes on first
+      run, held in a constant at the bottom of this file instead of coming from the
+      API.
+
+      What is real: every colour, typeface, radius, shadow and breakpoint; the
+      light and dark themes; the backing counts and how they are set; the filter
+      legend; the sign-in dialog; all six lifecycle states with the wording each
+      one produces; the promised-date chip and how it turns red once the date has
+      passed; and the verification window, including the tally arithmetic and the
+      sentence that settles it.
+
+      What is faked: the network. Backing a report changes the number in the page
+      and nothing else. Signing in does not sign you in - the form is here to be
+      looked at, and submitting it says so. Posting a reply is not wired up.
+
+      One deliberate lie, because the alternative is showing you nothing: the real
+      app only lets people who backed a report answer its verification window, and
+      you are not signed in. The preview treats you as somebody who backed the two
+      reports currently being checked, so the vote is visible and clickable. In the
+      running app that is a 403 unless you are actually a backer.
+
+      This file is a preview and is not part of the build. Deleting it breaks
+      nothing.
+    -->
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@400..800&family=Public+Sans:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+
+    <!-- The real stylesheet, loaded from its real location. Nothing is copied. -->
+    <link rel="stylesheet" href="frontend/src/styles.css" />
+
+    <style>
+      /* The only rules in this file. They style the preview's own banner, which
+         is not part of the app, and must not leak into anything that is. */
+
+      /* This one is load-bearing. The preview hides and shows things with the
+         "hidden" attribute, but a CSS "display" always beats the browser's
+         built-in [hidden] rule - and .overlay is display:grid, .field is
+         display:flex. Without this the sign-in dialog sits over the board from
+         the moment the page opens. React has no such problem because it removes
+         the element from the DOM instead of hiding it. */
+      [hidden] {
+        display: none !important;
+      }
+
+      .preview-note {
+        max-width: 78rem;
+        margin: 0 auto;
+        padding: 0.85rem 1.25rem 0;
+        font-family: 'Public Sans', system-ui, sans-serif;
+        font-size: 0.8rem;
+        line-height: 1.5;
+        color: var(--ink-faint);
+      }
+      .preview-note b {
+        color: var(--ink-soft);
+        font-weight: 600;
+      }
+      .preview-note code {
+        font-size: 0.95em;
+        color: var(--ink-soft);
+      }
+    </style>
+
+    <script>
+      /* Same pre-paint theme trick as index.html: set the attribute before the
+         first paint so a dark-mode reader never sees a white flash. */
+      (function () {
+        var theme;
+        try {
+          var stored = localStorage.getItem('nagarik.theme');
+          if (stored === 'light' || stored === 'dark') theme = stored;
+        } catch (e) {}
+        if (!theme) {
+          theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        }
+        document.documentElement.setAttribute('data-theme', theme);
+        document.documentElement.style.colorScheme = theme;
+      })();
+    </script>
+  </head>
+
+  <body>
+    <div class="app">
+      <header class="topbar">
+        <div class="topbar-inner">
+          <h1 class="brand">
+            <span class="brand-mark" aria-hidden="true">
+              <svg width="18" height="18" viewBox="0 0 18 18" focusable="false">
+                <path
+                  d="M9 1.5c3.3 0 6 2.6 6 5.8 0 4-6 9.2-6 9.2S3 11.3 3 7.3c0-3.2 2.7-5.8 6-5.8Z"
+                  fill="currentColor"
+                />
+                <circle cx="9" cy="7.2" r="2.2" fill="var(--brand-mark-dot)" />
+              </svg>
+            </span>
+            <span class="brand-name">Nagarik</span>
+          </h1>
+
+          <p class="standing-line" id="standing-line"></p>
+
+          <div class="topbar-actions">
+            <button type="button" class="icon-btn" id="theme-btn" aria-label="Switch theme"></button>
+            <button type="button" class="btn btn-quiet" data-open-auth>Sign in</button>
+            <button type="button" class="btn btn-primary" data-open-auth>Report a problem</button>
+          </div>
+        </div>
+      </header>
+
+      <p class="preview-note">
+        <b>Design preview.</b> Real stylesheet, real markup, seeded data, no server. Open a report to
+        see the lifecycle panel — two of them are in a verification window you can vote in. Nothing
+        here talks to an API; to run the actual app, see <code>README.md</code>.
+      </p>
+
+      <div class="board">
+        <div class="rail" id="rail">
+          <div class="filters card">
+            <section class="filter-block">
+              <h2 class="filter-head">Order</h2>
+              <div class="segmented" role="group" aria-label="Order the reports">
+                <button type="button" class="segment" data-sort="top" aria-pressed="true">
+                  Most backed
+                </button>
+                <button type="button" class="segment" data-sort="new" aria-pressed="false">
+                  Newest
+                </button>
+                <button type="button" class="segment" data-sort="discussed" aria-pressed="false">
+                  Discussed
+                </button>
+              </div>
+            </section>
+
+            <section class="filter-block">
+              <h2 class="filter-head">Kind of problem</h2>
+              <ul class="legend" id="legend"></ul>
+            </section>
+
+            <section class="filter-block">
+              <h2 class="filter-head">Narrow it down</h2>
+
+              <label class="field-inline">
+                <span class="field-inline-label">Status</span>
+                <!-- The six labels come from IssueStatus, in lifecycle order. -->
+                <select class="select" id="status-select">
+                  <option value="">Any status</option>
+                  <option value="REPORTED">Reported</option>
+                  <option value="ACKNOWLEDGED">Acknowledged</option>
+                  <option value="IN_PROGRESS">Work started</option>
+                  <option value="VERIFYING">Checking the fix</option>
+                  <option value="RESOLVED">Fixed</option>
+                  <option value="DISPUTED">Still not fixed</option>
+                </select>
+              </label>
+
+              <label class="field-inline">
+                <span class="field-inline-label">Locality</span>
+                <select class="select" id="area-select">
+                  <option value="">Anywhere</option>
+                </select>
+              </label>
+            </section>
+
+            <!-- Only once something is actually filtered, same as FilterBar. A
+                 clear button on an unfiltered board is a control that does
+                 nothing. -->
+            <button type="button" class="btn btn-quiet btn-wide" id="clear-rail" hidden>
+              Clear filters
+            </button>
+          </div>
+
+          <aside class="standing card" aria-label="Standing">
+            <h2 class="standing-head">Standing</h2>
+
+            <div class="standing-hero">
+              <span class="standing-big-num" id="standing-total"></span>
+              <span class="standing-big-word">reports on the board</span>
+            </div>
+
+            <div class="progress" role="img" id="standing-progress">
+              <span class="progress-fill" id="standing-fill"></span>
+            </div>
+            <p class="progress-note" id="standing-note"></p>
+
+            <dl class="standing-grid">
+              <div class="standing-cell"><dt>Open</dt><dd id="standing-open"></dd></div>
+              <div class="standing-cell"><dt>Fixed</dt><dd id="standing-fixed"></dd></div>
+              <div class="standing-cell"><dt>Backings</dt><dd id="standing-backings"></dd></div>
+              <div class="standing-cell"><dt>Residents</dt><dd id="standing-residents"></dd></div>
+            </dl>
+
+            <div class="standing-breakdown">
+              <h3 class="standing-sub">Where it is concentrated</h3>
+              <ul class="bars" id="bars"></ul>
+            </div>
+          </aside>
+        </div>
+
+        <main class="feed-pane">
+          <!-- The board and one open report are alternatives, the same way
+               App.jsx swaps the feed for IssueDetail. -->
+          <div id="board-view">
+            <div class="feed-bar">
+              <div class="search">
+                <label class="search-label" for="feed-search">Search reports</label>
+                <div class="search-field">
+                  <svg
+                    class="search-icon"
+                    width="15"
+                    height="15"
+                    viewBox="0 0 15 15"
+                    aria-hidden="true"
+                    focusable="false"
+                  >
+                    <circle cx="6.2" cy="6.2" r="4.6" fill="none" stroke="currentColor" stroke-width="1.6" />
+                    <path d="M9.7 9.7 13.6 13.6" stroke="currentColor" stroke-width="1.6" fill="none" />
+                  </svg>
+                  <input
+                    id="feed-search"
+                    class="input search-input"
+                    type="search"
+                    placeholder="A street, a kind of problem, a word from the report"
+                    autocomplete="off"
+                  />
+                </div>
+              </div>
+
+              <button type="button" class="btn btn-quiet rail-toggle" id="rail-toggle" aria-expanded="false">
+                Filters
+              </button>
+            </div>
+
+            <div class="feed-count" id="feed-count"></div>
+
+            <div class="feed" id="feed"></div>
+
+            <section class="state" id="empty-state" hidden>
+              <h2 class="state-head">Nothing matches that</h2>
+              <p>No reports match what you are asking for. Widen it, or raise the first one yourself.</p>
+              <div class="btn-row btn-row-center">
+                <button type="button" class="btn btn-quiet" id="clear-all">Clear filters</button>
+                <button type="button" class="btn btn-primary" data-open-auth>Report a problem</button>
+              </div>
+            </section>
+          </div>
+
+          <div id="detail-view" hidden></div>
+        </main>
+      </div>
+
+      <!-- Sign-in dialog, same markup as AuthDialog.jsx. Hidden until asked for. -->
+      <div class="overlay" id="auth-overlay" hidden role="presentation">
+        <div class="dialog dialog-auth" role="dialog" aria-modal="true" aria-labelledby="auth-head">
+          <h2 class="dialog-head" id="auth-head">Sign in</h2>
+          <p class="dialog-why">
+            Reports and replies are signed, so people know who is raising what.
+          </p>
+
+          <form id="auth-form" novalidate>
+            <p class="notice" id="auth-notice" hidden role="alert"></p>
+
+            <div class="field" id="name-field" hidden>
+              <label for="auth-name">Your name</label>
+              <span class="hint" id="auth-name-hint">
+                Shown on everything you post. Your email is never shown.
+              </span>
+              <input id="auth-name" class="input" maxlength="60" autocomplete="name" />
+            </div>
+
+            <div class="field">
+              <label for="auth-email">Email</label>
+              <input
+                id="auth-email"
+                class="input"
+                type="email"
+                maxlength="254"
+                autocomplete="email"
+                value="moderator@nagarik.test"
+              />
+            </div>
+
+            <div class="field">
+              <label for="auth-password">Password</label>
+              <div class="input-group">
+                <input
+                  id="auth-password"
+                  class="input"
+                  type="password"
+                  maxlength="72"
+                  autocomplete="current-password"
+                  value="nagarik123"
+                />
+                <button type="button" class="input-affix" id="reveal-btn" aria-label="Show the password">
+                  Show
+                </button>
+              </div>
+              <span class="hint" id="pw-hint" hidden>At least 8 characters.</span>
+            </div>
+
+            <div class="btn-row">
+              <button type="submit" class="btn btn-primary" id="auth-submit">Sign in</button>
+              <button type="button" class="btn btn-quiet" id="auth-cancel">Not now</button>
+            </div>
+          </form>
+
+          <p class="dialog-switch">
+            <span id="switch-text">No account yet?</span>
+            <button type="button" class="linkish" id="switch-btn">Create one</button>
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- The seeded board and the format helpers, shared with admin-preview.html. -->
+    <script src="preview-data.js"></script>
+
+    <script>
+      function excerpt(text) {
+        var flat = text.replace(/\s+/g, ' ').trim();
+        return flat.length > 190 ? flat.slice(0, 187).replace(/\s+$/, '') + '...' : flat;
+      }
+
+      /* ----------------------------------------------------------------------
+         State, and the render that follows from it
+         ---------------------------------------------------------------------- */
+      var state = { sort: 'top', category: null, status: '', area: '', search: '', openId: null };
+
+      function visible() {
+        var rows = ISSUES.filter(function (issue) {
+          if (state.category && issue.category !== state.category) return false;
+          if (state.status && issue.status !== state.status) return false;
+          if (state.area && issue.area !== state.area) return false;
+          if (state.search) {
+            var hay = (issue.title + ' ' + issue.description + ' ' + issue.area).toLowerCase();
+            if (hay.indexOf(state.search.toLowerCase()) === -1) return false;
+          }
+          return true;
+        });
+
+        return rows.sort(function (a, b) {
+          if (state.sort === 'new') return b.createdAt - a.createdAt;
+          if (state.sort === 'discussed') return b.commentCount - a.commentCount || b.createdAt - a.createdAt;
+          return b.voteCount - a.voteCount || b.createdAt - a.createdAt;
+        });
+      }
+
+      /* VoteControl.jsx */
+      function backingLabel(issue) {
+        return issue.votedByMe
+          ? 'Remove your backing from ' + issue.title
+          : 'Back this report: ' + issue.title;
+      }
+
+      function backingHtml(issue) {
+        return (
+          '<div class="backing">' +
+            '<button type="button" class="vote" aria-pressed="' + (issue.votedByMe ? 'true' : 'false') + '"' +
+              ' data-vote="' + issue.id + '"' +
+              ' aria-label="' + escapeHtml(backingLabel(issue)) + '">' +
+              '<svg width="15" height="10" viewBox="0 0 15 10" aria-hidden="true" focusable="false">' +
+                '<path d="M1.5 8.5 7.5 2l6 6.5" fill="none" stroke="currentColor" stroke-width="2"' +
+                ' stroke-linecap="round" stroke-linejoin="round" /></svg>' +
+            '</button>' +
+            '<span class="backing-count">' + issue.voteCount + '</span>' +
+            '<span class="backing-word">' + (issue.voteCount === 1 ? 'person' : 'people') + '</span>' +
+          '</div>'
+        );
+      }
+
+      /* IssueRow.jsx */
+      function rowHtml(issue, index) {
+        var colour = categoryColor(issue.category);
+        var promised = isPromised(issue);
+
+        return (
+          '<article class="entry card" style="--stripe:' + colour + ';--delay:' + Math.min(index, 8) * 40 + 'ms">' +
+            backingHtml(issue) +
+            '<div class="entry-main">' +
+              '<h3 class="entry-title"><button type="button" class="title-btn" data-open="' + issue.id + '">' +
+                escapeHtml(issue.title) + '</button></h3>' +
+              '<p class="entry-excerpt">' + escapeHtml(excerpt(issue.description)) + '</p>' +
+              '<div class="entry-foot">' +
+                '<span class="tag" style="--stripe:' + colour + '">' + escapeHtml(categoryLabel(issue.category)) + '</span>' +
+                '<span class="status" data-status="' + issue.status + '">' + STATUS_LABEL[issue.status] + '</span>' +
+                (promised
+                  ? '<span class="chip" data-late="' + (issue.overdue ? 'yes' : 'no') + '">' +
+                      (issue.overdue ? dueLabel(issue.etaDate) : 'by ' + shortDate(issue.etaDate)) +
+                    '</span>'
+                  : '') +
+                '<span class="entry-where">' + escapeHtml(issue.area) + '</span>' +
+                '<span class="entry-replies">' + issue.commentCount + (issue.commentCount === 1 ? ' reply' : ' replies') + '</span>' +
+                '<span class="entry-when">' + timeAgo(issue.createdAt) + '</span>' +
+              '</div>' +
+              (issue.canVerify
+                ? '<button type="button" class="entry-ask" data-open="' + issue.id + '">' +
+                    '<span class="entry-ask-dot" aria-hidden="true"></span>' +
+                    'The ward says this is done — you backed it, so does it look fixed?' +
+                  '</button>'
+                : '') +
+            '</div>' +
+          '</article>'
+        );
+      }
+
+      /* ProgressPanel.jsx */
+      function trackHtml(issue) {
+        var promised = isPromised(issue);
+
+        if (!promised && issue.verifyOpenedAt === undefined && issue.status !== 'RESOLVED') {
+          return (
+            '<div class="track track-waiting">' +
+              '<p class="track-line">Nobody has picked this up yet. Backing it is what moves it up the list.</p>' +
+            '</div>'
+          );
+        }
+
+        var html = '<div class="track" data-status="' + issue.status + '">';
+
+        if (promised) {
+          html +=
+            '<div class="promise" data-late="' + (issue.overdue ? 'yes' : 'no') + '">' +
+              '<span class="promise-date">' +
+                '<span class="promise-label">Promised by</span>' +
+                '<strong>' + shortDate(issue.etaDate) + '</strong>' +
+              '</span>' +
+              '<span class="promise-due">' + dueLabel(issue.etaDate) + '</span>' +
+            '</div>';
+        }
+
+        if (issue.workNote) html += '<p class="track-note">“' + escapeHtml(issue.workNote) + '”</p>';
+
+        if (issue.acknowledgedBy && issue.acknowledgedAt) {
+          html +=
+            '<p class="track-by">Picked up by ' + escapeHtml(issue.acknowledgedBy) + ' ' +
+            timeAgo(issue.acknowledgedAt) + '</p>';
+        }
+
+        if (issue.status === 'VERIFYING') html += verifyHtml(issue);
+
+        if (issue.status === 'RESOLVED') {
+          var cast = issue.confirmedCount + issue.deniedCount;
+          html +=
+            '<p class="track-line track-good">' +
+              (cast === 0
+                ? 'Marked done, and nobody objected during the week it was open for checking.'
+                : issue.confirmedCount + ' of the ' + cast + ' people who answered confirmed this was fixed.') +
+              (issue.resolvedAt ? ' Closed ' + fullDate(issue.resolvedAt) + '.' : '') +
+            '</p>';
+        }
+
+        if (issue.status === 'DISPUTED') {
+          html +=
+            '<p class="track-line track-bad">The work was marked done, and ' + issue.deniedCount +
+            ' of the ' + (issue.confirmedCount + issue.deniedCount) +
+            ' people who answered said the problem was still there. It is back with the ward.</p>';
+        }
+
+        return html + '</div>';
+      }
+
+      function verifyHtml(issue) {
+        var cast = issue.confirmedCount + issue.deniedCount;
+        var needed = Math.max(issue.verifyQuorum - cast, 0);
+        var yesShare = cast === 0 ? 0 : Math.round((issue.confirmedCount / cast) * 100);
+
+        return (
+          '<div class="verify">' +
+            '<p class="verify-head">The ward says this is done. The people who reported it decide whether it is.</p>' +
+            '<div class="verify-bar" role="img" aria-label="' + issue.confirmedCount + ' fixed, ' + issue.deniedCount + ' not fixed">' +
+              '<span class="verify-yes" style="width:' + yesShare + '%"></span>' +
+              '<span class="verify-no" style="width:' + (100 - yesShare) + '%"></span>' +
+            '</div>' +
+            '<p class="verify-tally">' +
+              '<strong>' + issue.confirmedCount + '</strong> fixed · <strong>' + issue.deniedCount + '</strong> not fixed' +
+              '<span class="verify-sep">·</span>' +
+              (needed > 0
+                ? needed + ' more ' + (needed === 1 ? 'answer' : 'answers') + ' settles it'
+                : 'enough answers to settle') +
+              '<span class="verify-sep">·</span>' +
+              timeLeft(issue.verifyDeadline) +
+            '</p>' +
+            '<div class="verify-actions">' +
+              '<button type="button" class="btn verify-btn' + (issue.myConfirmation === true ? ' is-chosen' : '') + '"' +
+                ' aria-pressed="' + (issue.myConfirmation === true) + '" data-confirm="yes">It is fixed</button>' +
+              '<button type="button" class="btn verify-btn verify-btn-no' + (issue.myConfirmation === false ? ' is-chosen' : '') + '"' +
+                ' aria-pressed="' + (issue.myConfirmation === false) + '" data-confirm="no">Still a problem</button>' +
+              (issue.myConfirmation !== null
+                ? '<span class="verify-changed">You can change this until the window closes.</span>'
+                : '') +
+            '</div>' +
+          '</div>'
+        );
+      }
+
+      /* IssueDetail.jsx */
+      function detailHtml(issue) {
+        var colour = categoryColor(issue.category);
+
+        var comments = issue.comments.map(function (row, i) {
+          var when = new Date(issue.createdAt.getTime() + (i + 1) * 3600000);
+          return (
+            '<li class="comment">' +
+              '<span class="avatar avatar-sm" aria-hidden="true">' + escapeHtml(row[0].slice(0, 1).toUpperCase()) + '</span>' +
+              '<div class="comment-main">' +
+                '<div class="comment-head">' +
+                  '<span class="comment-who">' + escapeHtml(row[0]) + '</span>' +
+                  '<span class="comment-when">' + timeAgo(when) + '</span>' +
+                '</div>' +
+                '<p class="comment-body">' + escapeHtml(row[1]) + '</p>' +
+              '</div>' +
+            '</li>'
+          );
+        }).join('');
+
+        return (
+          '<article class="detail card" style="--stripe:' + colour + '">' +
+            '<button type="button" class="back-btn" id="back-btn">' +
+              '<svg width="14" height="12" viewBox="0 0 14 12" aria-hidden="true" focusable="false">' +
+                '<path d="M6 1 1 6l5 5M1 6h12" fill="none" stroke="currentColor" stroke-width="1.6"' +
+                ' stroke-linecap="round" stroke-linejoin="round" /></svg>' +
+              'Back to all reports' +
+            '</button>' +
+            '<h2 class="detail-title" tabindex="-1">' + escapeHtml(issue.title) + '</h2>' +
+            '<p class="detail-where">' + escapeHtml(issue.area) + '</p>' +
+            '<div class="entry-foot">' +
+              '<span class="tag" style="--stripe:' + colour + '">' + escapeHtml(categoryLabel(issue.category)) + '</span>' +
+              '<span class="status" data-status="' + issue.status + '">' + STATUS_LABEL[issue.status] + '</span>' +
+            '</div>' +
+            '<p class="detail-body">' + escapeHtml(issue.description) + '</p>' +
+            trackHtml(issue) +
+            '<div class="detail-strip">' +
+              '<div class="detail-backing">' +
+                backingHtml(issue) +
+                '<span class="byline">' +
+                  (issue.votedByMe ? 'You are backing this' : 'Back this if it affects you too') +
+                '</span>' +
+              '</div>' +
+              '<p class="byline status-note">Sign in to back this report or join the discussion.</p>' +
+            '</div>' +
+            '<p class="byline">Reported by ' + escapeHtml(issue.author) + ' on ' + fullDate(issue.createdAt) + '</p>' +
+          '</article>' +
+
+          '<section class="discussion card">' +
+            '<h3 class="discussion-head">' +
+              (issue.commentCount === 0 ? 'No replies yet' : issue.commentCount === 1 ? '1 reply' : issue.commentCount + ' replies') +
+            '</h3>' +
+            (issue.commentCount > 0 ? '<ul class="comments">' + comments + '</ul>' : '') +
+            '<form class="reply-box" id="reply-box" novalidate>' +
+              '<p class="notice" id="reply-notice" hidden role="alert"></p>' +
+              '<div class="field">' +
+                '<label for="reply">Add what you know</label>' +
+                '<span class="hint" id="reply-hint">Whether it is happening to you as well, who you have already contacted, what changed.</span>' +
+                '<textarea id="reply" class="textarea" maxlength="2000" aria-describedby="reply-hint" placeholder="Sign in to reply"></textarea>' +
+              '</div>' +
+              '<button type="submit" class="btn btn-primary">Post reply</button>' +
+            '</form>' +
+          '</section>'
+        );
+      }
+
+      function byId(id) {
+        return ISSUES.filter(function (row) { return row.id === id; })[0];
+      }
+
+      /* Backing is wired the same way in both views, so it is bound once here
+         rather than duplicated into each renderer. */
+      function bindBacking(root) {
+        root.querySelectorAll('[data-vote]').forEach(function (button) {
+          button.addEventListener('click', function () {
+            var issue = byId(Number(button.getAttribute('data-vote')));
+            issue.votedByMe = !issue.votedByMe;
+            issue.voteCount += issue.votedByMe ? 1 : -1;
+
+            // Update this one row in place instead of re-rendering. The .entry
+            // class carries a "rise" entrance animation with a stagger, so
+            // rebuilding the list would replay it on all fourteen rows on every
+            // click. React does not hit this: keys mean it updates the row it
+            // already has rather than making a new one.
+            //
+            // Not re-sorting is also what the real app does - your vote changes
+            // the number, it does not yank the row up the page while you look at
+            // it.
+            var backing = button.parentNode;
+            button.setAttribute('aria-pressed', String(issue.votedByMe));
+            // The label has to move with the state or a screen reader keeps
+            // offering to back something you have already backed.
+            button.setAttribute('aria-label', backingLabel(issue));
+            backing.querySelector('.backing-count').textContent = issue.voteCount;
+            backing.querySelector('.backing-word').textContent =
+              issue.voteCount === 1 ? 'person' : 'people';
+
+            // In the detail view the same state is also written out in words
+            // next to the control, and a number that moves while the sentence
+            // beside it does not is worse than either alone.
+            var byline = backing.parentNode.querySelector('.byline');
+            if (byline) {
+              byline.textContent = issue.votedByMe
+                ? 'You are backing this'
+                : 'Back this if it affects you too';
+            }
+          });
+        });
+      }
+
+      function renderDetail(focusTitle) {
+        var issue = byId(state.openId);
+        var pane = document.getElementById('detail-view');
+        pane.innerHTML = detailHtml(issue);
+
+        // The header line and the standing panel sit outside the board, so they
+        // stay on screen while a report is open - and a vote that settles the
+        // window changes both of them.
+        paintStanding();
+
+        document.getElementById('back-btn').addEventListener('click', function () {
+          state.openId = null;
+          render();
+        });
+
+        bindBacking(pane);
+
+        pane.querySelectorAll('[data-confirm]').forEach(function (button) {
+          button.addEventListener('click', function () {
+            var said = button.getAttribute('data-confirm') === 'yes';
+
+            // One answer per person, changeable while the window is open, and
+            // the window closes itself the moment enough people have answered
+            // for the majority to be settled. All of that lives in the shared
+            // file, because the dashboard has to agree with it exactly.
+            confirmFix(issue, said);
+
+            // The panel is rebuilt, so the button that was just pressed is gone.
+            // Put focus on its replacement rather than letting it fall to the
+            // body, which would drop a keyboard user back at the top of the
+            // document after every vote.
+            renderDetail(false);
+            var again = document.querySelector('[data-confirm="' + (said ? 'yes' : 'no') + '"]');
+            if (again) {
+              again.focus();
+            } else {
+              // No replacement because that answer closed the window. Focus the
+              // heading, which is where the outcome is now written.
+              pane.querySelector('.detail-title').focus();
+            }
+          });
+        });
+
+        document.getElementById('reply-box').addEventListener('submit', function (event) {
+          event.preventDefault();
+          var notice = document.getElementById('reply-notice');
+          notice.textContent =
+            'This preview has no server, so replies go nowhere. In the running app this posts to ' +
+            '/api/issues/' + issue.id + '/comments.';
+          notice.hidden = false;
+        });
+
+        // Only when the report is first opened. React does this in an effect
+        // keyed on the id, so a re-render caused by voting does not re-run it.
+        if (focusTitle) pane.querySelector('.detail-title').focus();
+      }
+
+      /* StandingPanel, computed rather than written into the markup. It has to
+         be: a verification vote can settle a report, and then the number of
+         reports fixed is different from the one the page was built with. */
+      function paintStanding() {
+        var s = stats();
+        var percent = s.total === 0 ? 0 : Math.round((s.resolved / s.total) * 100);
+
+        document.getElementById('standing-line').innerHTML =
+          '<strong>' + s.open + '</strong> open' +
+          '<span class="standing-sep" aria-hidden="true"></span>' +
+          '<strong>' + s.resolved + '</strong> fixed' +
+          '<span class="standing-sep" aria-hidden="true"></span>' +
+          '<strong>' + s.residents + '</strong> residents';
+
+        document.getElementById('standing-total').textContent = s.total;
+        document.getElementById('standing-progress').setAttribute(
+          'aria-label',
+          percent + '% of reports fixed'
+        );
+        document.getElementById('standing-fill').style.width = percent + '%';
+        document.getElementById('standing-note').textContent = percent + '% fixed so far';
+        document.getElementById('standing-open').textContent = s.open;
+        document.getElementById('standing-fixed').textContent = s.resolved;
+        document.getElementById('standing-backings').textContent = s.votes;
+        document.getElementById('standing-residents').textContent = s.residents;
+      }
+
+      function render() {
+        // The backend settles any verification window whose week has run out on
+        // the way into every read, so a read here does it too. Nothing on the
+        // seeded board is expired, but a window opened from the dashboard and
+        // left alone will close itself here.
+        sweepDeadlines();
+        paintStanding();
+
+        var board = document.getElementById('board-view');
+        var detail = document.getElementById('detail-view');
+
+        if (state.openId !== null) {
+          board.hidden = true;
+          detail.hidden = false;
+          renderDetail(true);
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+          return;
+        }
+
+        detail.hidden = true;
+        detail.innerHTML = '';
+        board.hidden = false;
+
+        var rows = visible();
+        var feed = document.getElementById('feed');
+        var empty = document.getElementById('empty-state');
+
+        feed.innerHTML = rows.map(rowHtml).join('');
+        empty.hidden = rows.length > 0;
+
+        var filtering = Boolean(state.category || state.status || state.area || state.search);
+        document.getElementById('clear-rail').hidden = !filtering;
+        document.getElementById('feed-count').textContent =
+          rows.length === 0
+            ? 'Nothing on the board'
+            : 'Showing ' + rows.length + ' of ' + ISSUES.length + (filtering ? ' matching' : '');
+
+        bindBacking(feed);
+
+        feed.querySelectorAll('[data-open]').forEach(function (button) {
+          button.addEventListener('click', function () {
+            state.openId = Number(button.getAttribute('data-open'));
+            render();
+          });
+        });
+
+        document.querySelectorAll('.legend-row').forEach(function (button) {
+          var value = button.getAttribute('data-category');
+          button.setAttribute('aria-pressed', String(value === (state.category || '')));
+        });
+      }
+
+      /* ----------------------------------------------------------------------
+         The legend, the bars, and the locality list, all built from the data
+         ---------------------------------------------------------------------- */
+      function countIn(value) {
+        return ISSUES.filter(function (issue) { return issue.category === value; }).length;
+      }
+
+      (function buildLegend() {
+        var html =
+          '<li><button type="button" class="legend-row" data-category="" aria-pressed="true">' +
+            '<span class="legend-swatch legend-swatch-all" aria-hidden="true"></span>' +
+            '<span class="legend-label">Everything</span>' +
+            '<span class="legend-count">' + ISSUES.length + '</span>' +
+          '</button></li>';
+
+        html += CATEGORIES.map(function (category) {
+          return (
+            '<li><button type="button" class="legend-row" data-category="' + category.value + '"' +
+              ' aria-pressed="false" style="--stripe:' + categoryColor(category.value) + '">' +
+              '<span class="legend-swatch" aria-hidden="true"></span>' +
+              '<span class="legend-label">' + category.label + '</span>' +
+              '<span class="legend-count">' + countIn(category.value) + '</span>' +
+            '</button></li>'
+          );
+        }).join('');
+
+        document.getElementById('legend').innerHTML = html;
+
+        document.querySelectorAll('.legend-row').forEach(function (button) {
+          button.addEventListener('click', function () {
+            var value = button.getAttribute('data-category');
+            state.category = value === '' || value === state.category ? null : value;
+            state.openId = null;
+            render();
+          });
+        });
+      })();
+
+      (function buildBars() {
+        var busiest = Math.max.apply(null, CATEGORIES.map(function (c) { return countIn(c.value); }));
+        document.getElementById('bars').innerHTML = CATEGORIES.map(function (category) {
+          var total = countIn(category.value);
+          return (
+            '<li><button type="button" class="bar-row" data-bar="' + category.value + '"' +
+              ' style="--stripe:' + categoryColor(category.value) + '">' +
+              '<span class="bar-label">' + category.label + '</span>' +
+              '<span class="bar-track"><span class="bar-fill" style="width:' +
+                Math.round((total / Math.max(busiest, 1)) * 100) + '%"></span></span>' +
+              '<span class="bar-count">' + total + '</span>' +
+            '</button></li>'
+          );
+        }).join('');
+
+        document.querySelectorAll('[data-bar]').forEach(function (button) {
+          button.addEventListener('click', function () {
+            state.category = button.getAttribute('data-bar');
+            state.openId = null;
+            render();
+          });
+        });
+      })();
+
+      (function buildAreas() {
+        var seen = [];
+        ISSUES.forEach(function (issue) {
+          if (seen.indexOf(issue.area) === -1) seen.push(issue.area);
+        });
+        var select = document.getElementById('area-select');
+        seen.sort().forEach(function (area) {
+          var option = document.createElement('option');
+          option.value = area;
+          option.textContent = area;
+          select.appendChild(option);
+        });
+      })();
+
+      /* ----------------------------------------------------------------------
+         Controls
+         ---------------------------------------------------------------------- */
+      document.querySelectorAll('[data-sort]').forEach(function (button) {
+        button.addEventListener('click', function () {
+          state.sort = button.getAttribute('data-sort');
+          document.querySelectorAll('[data-sort]').forEach(function (other) {
+            other.setAttribute('aria-pressed', String(other === button));
+          });
+          state.openId = null;
+          render();
+        });
+      });
+
+      document.getElementById('status-select').addEventListener('change', function (event) {
+        state.status = event.target.value;
+        state.openId = null;
+        render();
+      });
+
+      document.getElementById('area-select').addEventListener('change', function (event) {
+        state.area = event.target.value;
+        state.openId = null;
+        render();
+      });
+
+      document.getElementById('feed-search').addEventListener('input', function (event) {
+        state.search = event.target.value;
+        state.openId = null;
+        render();
+      });
+
+      function clearFilters() {
+        state = { sort: state.sort, category: null, status: '', area: '', search: '', openId: null };
+        document.getElementById('status-select').value = '';
+        document.getElementById('area-select').value = '';
+        document.getElementById('feed-search').value = '';
+        render();
+      }
+
+      document.getElementById('clear-all').addEventListener('click', clearFilters);
+      document.getElementById('clear-rail').addEventListener('click', clearFilters);
+
+      var railToggle = document.getElementById('rail-toggle');
+      railToggle.addEventListener('click', function () {
+        var rail = document.getElementById('rail');
+        var open = rail.classList.toggle('is-open');
+        railToggle.setAttribute('aria-expanded', String(open));
+        railToggle.textContent = open ? 'Hide filters' : 'Filters';
+      });
+
+      /* Theme, with the same storage key the app uses, so a choice made here
+         carries over to the real thing in the same browser. */
+      var SUN =
+        '<svg width="17" height="17" viewBox="0 0 17 17" aria-hidden="true"><circle cx="8.5" cy="8.5" r="3.4" fill="currentColor"/>' +
+        '<g stroke="currentColor" stroke-width="1.5" stroke-linecap="round">' +
+        '<path d="M8.5 .8v2M8.5 14.2v2M.8 8.5h2M14.2 8.5h2M3 3l1.4 1.4M12.6 12.6 14 14M14 3l-1.4 1.4M4.4 12.6 3 14"/></g></svg>';
+      var MOON =
+        '<svg width="17" height="17" viewBox="0 0 17 17" aria-hidden="true">' +
+        '<path d="M14.5 10.4A6.4 6.4 0 0 1 6.6 2.5a6.5 6.5 0 1 0 7.9 7.9Z" fill="currentColor"/></svg>';
+
+      var themeBtn = document.getElementById('theme-btn');
+      function paintThemeButton() {
+        themeBtn.innerHTML =
+          document.documentElement.getAttribute('data-theme') === 'dark' ? SUN : MOON;
+      }
+      themeBtn.addEventListener('click', function () {
+        var next =
+          document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+        document.documentElement.setAttribute('data-theme', next);
+        document.documentElement.style.colorScheme = next;
+        try { localStorage.setItem('nagarik.theme', next); } catch (e) {}
+        paintThemeButton();
+      });
+      paintThemeButton();
+
+      /* The sign-in dialog. Shown, switchable, and honest about going nowhere. */
+      var overlay = document.getElementById('auth-overlay');
+      var signingIn = true;
+
+      function paintAuth() {
+        document.getElementById('auth-head').textContent = signingIn ? 'Sign in' : 'Create an account';
+        document.getElementById('auth-submit').textContent = signingIn ? 'Sign in' : 'Create account';
+        document.getElementById('name-field').hidden = signingIn;
+        document.getElementById('pw-hint').hidden = signingIn;
+        document.getElementById('switch-text').textContent = signingIn
+          ? 'No account yet?'
+          : 'Already have an account?';
+        document.getElementById('switch-btn').textContent = signingIn ? 'Create one' : 'Sign in';
+      }
+
+      function closeAuth() {
+        overlay.hidden = true;
+        document.body.style.overflow = '';
+        document.getElementById('auth-notice').hidden = true;
+      }
+
+      document.querySelectorAll('[data-open-auth]').forEach(function (button) {
+        button.addEventListener('click', function () {
+          overlay.hidden = false;
+          document.body.style.overflow = 'hidden';
+          paintAuth();
+          document.getElementById('auth-email').focus();
+        });
+      });
+
+      document.getElementById('auth-cancel').addEventListener('click', closeAuth);
+      overlay.addEventListener('click', function (event) {
+        if (event.target === overlay) closeAuth();
+      });
+      window.addEventListener('keydown', function (event) {
+        if (event.key === 'Escape' && !overlay.hidden) closeAuth();
+      });
+
+      document.getElementById('switch-btn').addEventListener('click', function () {
+        signingIn = !signingIn;
+        paintAuth();
+      });
+
+      document.getElementById('reveal-btn').addEventListener('click', function () {
+        var input = document.getElementById('auth-password');
+        var shown = input.type === 'text';
+        input.type = shown ? 'password' : 'text';
+        this.textContent = shown ? 'Show' : 'Hide';
+        this.setAttribute('aria-label', shown ? 'Show the password' : 'Hide the password');
+      });
+
+      document.getElementById('auth-form').addEventListener('submit', function (event) {
+        event.preventDefault();
+        var notice = document.getElementById('auth-notice');
+        notice.textContent =
+          'This preview has no server, so there is nothing to sign in to. In the running app this ' +
+          'posts to /api/auth/login and comes back with a token.';
+        notice.hidden = false;
+      });
+
+      render();
+    </script>
+  </body>
+</html>

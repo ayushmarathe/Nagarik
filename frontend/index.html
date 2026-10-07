@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Nagarik</title>
+    <meta
+      name="description"
+      content="Report a local problem, back the ones your neighbours have already reported, and follow what gets fixed."
+    />
+
+    <meta name="theme-color" content="#f2f6f6" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#081416" media="(prefers-color-scheme: dark)" />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@400..800&family=Public+Sans:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+
+    <script>
+      /*
+        The theme has to be on <html> before the first paint, otherwise a reader
+        who chose dark gets a white flash on every load. Nothing that runs after
+        the module graph has been fetched can be early enough, so this small
+        piece is inline and blocking.
+
+        It duplicates two lines of src/lib/theme.js on purpose. The alternative
+        is a module import, which is deferred by definition and would put the
+        flash back. Both read the same key and write the same attribute, so the
+        second run is a no-op rather than a fight.
+      */
+      (function () {
+        var theme;
+        try {
+          var stored = localStorage.getItem('nagarik.theme');
+          if (stored === 'light' || stored === 'dark') theme = stored;
+        } catch (e) {
+          /* Storage blocked. Fall through to the system preference. */
+        }
+        if (!theme) {
+          theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        }
+        document.documentElement.setAttribute('data-theme', theme);
+        document.documentElement.style.colorScheme = theme;
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>

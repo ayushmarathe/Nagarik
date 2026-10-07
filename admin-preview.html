@@ -1,0 +1,1012 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Nagarik — ward dashboard preview</title>
+
+    <!--
+      THE WARD DASHBOARD, WITH NOTHING INSTALLED.
+
+      Double-click this file. No Postgres, no Maven, no npm.
+
+      The real dashboard is a second Vite entry point (frontend/admin.html) whose
+      script is an ES module importing React, so it cannot be opened off the disk
+      the way this can. This file reproduces it: the real stylesheets, the same
+      markup and class names the components in frontend/src/admin/ produce, and
+      the same fourteen seeded reports the resident preview uses, loaded from
+      preview-data.js so the two cannot drift apart.
+
+      What is real: the queue and its six tabs, the counts on them, the summary
+      strip and what each card selects, the filters, the search, every sort
+      order, the row layout and what each column shows, the expanded panel, and
+      the whole set of moves a moderator can make - picking a report up with a
+      promised date, changing that date, sending a crew, marking work done, and
+      reopening something that came back. Those moves really do change the board:
+      mark one done and it moves to Being checked, the counts update, and the
+      resident preview will show it in a verification window.
+
+      What is faked: the network and the sign-in. The real dashboard turns away
+      anyone who is not a moderator, and every action is a POST to /api/admin.
+      Here you are simply assumed to be the moderator, and the state lives in
+      memory - reload and it is back to the seeded board.
+
+      Not part of the build. Deleting it breaks nothing.
+    -->
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@400..800&family=Public+Sans:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+
+    <!--
+      Both real stylesheets, in the order admin.jsx imports them. styles.css
+      carries the tokens and the primitives; admin.css carries only what the
+      dashboard adds, and must come second so its overrides win.
+    -->
+    <link rel="stylesheet" href="frontend/src/styles.css" />
+    <link rel="stylesheet" href="frontend/src/admin.css" />
+
+    <style>
+      /* The only rules in this file, and they style the preview's own banner,
+         which is not part of the app. */
+
+      /* Load-bearing: the preview hides things with the "hidden" attribute, but
+         any CSS display wins over the browser's built-in [hidden] rule, and
+         .overlay is display:grid. Without this the schedule dialog sits over the
+         queue from the moment the page opens. React does not need it because it
+         removes the element instead of hiding it. */
+      [hidden] {
+        display: none !important;
+      }
+
+      .preview-note {
+        margin: 0 0 1.1rem;
+        font-family: 'Public Sans', system-ui, sans-serif;
+        font-size: 0.8rem;
+        line-height: 1.5;
+        color: var(--ink-faint);
+      }
+      .preview-note b {
+        color: var(--ink-soft);
+        font-weight: 600;
+      }
+      .preview-note a {
+        color: var(--brand);
+      }
+    </style>
+
+    <script>
+      /* Set the theme before the first paint so a dark-mode reader never sees a
+         white flash. Duplicated from the real admin.html rather than shared,
+         because it has to run before anything else loads. */
+      (function () {
+        var theme;
+        try {
+          var stored = localStorage.getItem('nagarik.theme');
+          if (stored === 'light' || stored === 'dark') theme = stored;
+        } catch (e) {}
+        if (!theme) {
+          theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        }
+        document.documentElement.setAttribute('data-theme', theme);
+        document.documentElement.style.colorScheme = theme;
+      })();
+    </script>
+  </head>
+
+  <body>
+    <div class="adm">
+      <header class="adm-top">
+        <div class="adm-top-inner">
+          <a class="adm-brand" href="preview.html">
+            <span class="brand-mark" aria-hidden="true">
+              <svg width="16" height="16" viewBox="0 0 18 18" focusable="false">
+                <path
+                  d="M9 1.5c3.3 0 6 2.6 6 5.8 0 4-6 9.2-6 9.2S3 11.3 3 7.3c0-3.2 2.7-5.8 6-5.8Z"
+                  fill="currentColor"
+                />
+                <circle cx="9" cy="7.2" r="2.2" fill="var(--brand-mark-dot)" />
+              </svg>
+            </span>
+            <span class="adm-brand-name">Nagarik</span>
+            <span class="adm-brand-sep" aria-hidden="true"></span>
+            <span class="adm-brand-what">Ward dashboard</span>
+          </a>
+
+          <div class="adm-top-actions">
+            <button
+              type="button"
+              class="icon-btn"
+              id="theme-btn"
+              aria-label="Switch to the dark theme"
+            ></button>
+            <!-- Points at the resident preview rather than "/", since there is
+                 no server here to serve a root. -->
+            <a class="btn btn-quiet" href="preview.html">The board</a>
+            <span class="adm-who">
+              <span class="avatar avatar-sm" aria-hidden="true">W</span>
+              <span class="adm-who-name">Ward Moderator</span>
+            </span>
+            <button type="button" class="btn btn-quiet" id="signout-btn">Sign out</button>
+          </div>
+        </div>
+      </header>
+
+      <main class="adm-body">
+        <p class="preview-note">
+          <b>Design preview.</b> Real stylesheets, real markup, the same seeded board as
+          <a href="preview.html">the resident preview</a>, no server. Every action works and changes
+          the queue in memory — pick a report up, give it a date, mark it done, and watch it move to
+          <b>Being checked</b>. Reload to get the seeded board back.
+        </p>
+
+        <div class="adm-strip" id="strip"></div>
+
+        <nav class="adm-tabs" aria-label="Queues" id="tabs"></nav>
+
+        <div class="adm-controls">
+          <input
+            class="input adm-search"
+            type="search"
+            id="search"
+            placeholder="Search titles, descriptions and localities"
+            aria-label="Search the queue"
+          />
+          <select class="select" id="category-select" aria-label="Filter by category">
+            <option value="">Every category</option>
+          </select>
+          <select class="select" id="area-select" aria-label="Filter by locality">
+            <option value="">Every locality</option>
+          </select>
+          <select class="select" id="sort-select" aria-label="Order the queue"></select>
+          <label class="adm-check">
+            <input type="checkbox" id="overdue-check" />
+            Past its date only
+          </label>
+          <button type="button" class="btn btn-quiet" id="clear-btn" hidden>Clear</button>
+        </div>
+
+        <div class="adm-count" id="count"></div>
+
+        <div id="queue"></div>
+      </main>
+    </div>
+
+    <!-- ScheduleDialog.jsx. Hidden until a row asks for it. -->
+    <div class="overlay" id="sched-overlay" hidden role="presentation">
+      <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="sched-head">
+        <h2 class="dialog-head" id="sched-head"></h2>
+        <p class="dialog-why" id="sched-why"></p>
+        <p class="adm-dialog-subject" id="sched-subject"></p>
+
+        <form id="sched-form" novalidate>
+          <!--
+            The component mounts the error notice only when there is something to
+            say, and that matters rather than being a detail: a role="alert"
+            element already sitting in the page and merely unhidden is not
+            reliably announced, whereas one that is inserted is. So the preview
+            inserts it into this slot too, instead of hiding it.
+          -->
+          <div id="sched-error-slot"></div>
+
+          <div class="field">
+            <label for="sched-date">Done by</label>
+            <input id="sched-date" class="input" type="date" aria-invalid="false" />
+            <span id="sched-date-error-slot"></span>
+            <div class="adm-quick" id="sched-quick"></div>
+          </div>
+
+          <div class="field">
+            <label for="sched-note">Note to residents</label>
+            <span class="hint" id="sched-note-hint"></span>
+            <textarea
+              id="sched-note"
+              class="textarea"
+              maxlength="500"
+              rows="3"
+              aria-describedby="sched-note-hint"
+            ></textarea>
+          </div>
+
+          <div class="btn-row">
+            <button type="submit" class="btn btn-primary" id="sched-save"></button>
+            <button type="button" class="btn btn-quiet" id="sched-cancel">Cancel</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div class="toasts" role="status" aria-live="polite" id="toasts"></div>
+
+    <!-- The seeded board and the format helpers, shared with preview.html. -->
+    <script src="preview-data.js"></script>
+
+    <script>
+      /* ----------------------------------------------------------------------
+         Dashboard.jsx: the queues, the sorts, and where the view starts
+         ---------------------------------------------------------------------- */
+      var BUCKETS = [
+        { key: 'inbox', label: 'Needs a date', statuses: ['REPORTED'] },
+        { key: 'owed', label: 'Scheduled', statuses: ['ACKNOWLEDGED', 'IN_PROGRESS'] },
+        { key: 'verifying', label: 'Being checked', statuses: ['VERIFYING'] },
+        { key: 'disputed', label: 'Disputed', statuses: ['DISPUTED'] },
+        { key: 'resolved', label: 'Closed', statuses: ['RESOLVED'] },
+        { key: 'all', label: 'Everything', statuses: null }
+      ];
+
+      var SORTS = [
+        { key: 'eta', label: 'Promised date' },
+        { key: 'deadline', label: 'Checking window closing' },
+        { key: 'top', label: 'Most backed' },
+        { key: 'new', label: 'Newest' },
+        { key: 'oldest', label: 'Oldest' },
+        { key: 'discussed', label: 'Most discussed' }
+      ];
+
+      var QUICK = [
+        { days: 3, label: 'In 3 days' },
+        { days: 7, label: 'In a week' },
+        { days: 14, label: 'In 2 weeks' },
+        { days: 30, label: 'In a month' }
+      ];
+
+      var view = { bucket: 'inbox', category: '', area: '', overdue: false, sort: 'eta', search: '' };
+
+      // Which rows are expanded, and which have just been actioned out of the
+      // tab being looked at. Both are view state rather than data, which is why
+      // they live here and not on the issue.
+      var expanded = {};
+      var moved = {};
+
+      // The report the dialog is editing, and whether this is the first time it
+      // is being scheduled. Null when the dialog is closed.
+      var scheduling = null;
+
+      // The pending debounce for the search box, so a keystroke can cancel the
+      // one before it.
+      var searchTimer = null;
+
+      function bucketOf(key) {
+        for (var i = 0; i < BUCKETS.length; i += 1) {
+          if (BUCKETS[i].key === key) return BUCKETS[i];
+        }
+        return BUCKETS[0];
+      }
+
+      function byId(id) {
+        for (var i = 0; i < ISSUES.length; i += 1) {
+          if (ISSUES[i].id === id) return ISSUES[i];
+        }
+        return null;
+      }
+
+      function filtering() {
+        return Boolean(view.category) || Boolean(view.area) || view.overdue || Boolean(view.search);
+      }
+
+      /* GET /api/admin/issues, done in memory. The server applies the bucket,
+         then the filters, then the sort, then pages - so this does too. */
+      function rows() {
+        var statuses = bucketOf(view.bucket).statuses;
+
+        var found = ISSUES.filter(function (issue) {
+          // A row actioned out of this tab stays put until the next read, so
+          // the moderator sees what they just did instead of it vanishing.
+          if (statuses && statuses.indexOf(issue.status) === -1 && !moved[issue.id]) return false;
+          if (view.category && issue.category !== view.category) return false;
+          if (view.area && issue.area !== view.area) return false;
+          if (view.overdue && !issue.overdue) return false;
+          if (view.search) {
+            var hay = (issue.title + ' ' + issue.description + ' ' + issue.area).toLowerCase();
+            if (hay.indexOf(view.search.toLowerCase()) === -1) return false;
+          }
+          return true;
+        });
+
+        return found.sort(comparator(view.sort));
+      }
+
+      /* These mirror IssueService.sortFor. Every one of them ends in id
+         descending, because a sort that leaves ties unordered is not a stable
+         queue - two reports with the same comment count would swap places
+         between reads. */
+      function newest(a, b) {
+        return b.createdAt - a.createdAt || b.id - a.id;
+      }
+
+      function comparator(sort) {
+        if (sort === 'top') {
+          return function (a, b) {
+            return b.voteCount - a.voteCount || newest(a, b);
+          };
+        }
+        if (sort === 'new') {
+          return newest;
+        }
+        if (sort === 'oldest') {
+          return function (a, b) {
+            return a.createdAt - b.createdAt || a.id - b.id;
+          };
+        }
+        if (sort === 'discussed') {
+          return function (a, b) {
+            return b.commentCount - a.commentCount || newest(a, b);
+          };
+        }
+        if (sort === 'deadline') {
+          // Rows with no window sort last rather than first: this order exists
+          // to surface the window about to close, and a report with no window
+          // cannot close.
+          return function (a, b) {
+            if (!a.verifyDeadline && !b.verifyDeadline) return b.id - a.id;
+            if (!a.verifyDeadline) return 1;
+            if (!b.verifyDeadline) return -1;
+            return a.verifyDeadline - b.verifyDeadline || b.id - a.id;
+          };
+        }
+        // eta, the default. Undated reports sort FIRST, not last - the server
+        // is explicit about this and the reasoning is the point of the tab: a
+        // report nobody has promised a date for is the one most in need of
+        // attention, not the one to bury under the work already scheduled.
+        return function (a, b) {
+          // The raw column, not isPromised(). A date that stopped being a
+          // promise because the work moved on is still the date this sorts on,
+          // which is what the server does.
+          var left = a.etaDate || null;
+          var right = b.etaDate || null;
+          if (!left && !right) return b.voteCount - a.voteCount || b.id - a.id;
+          if (!left) return -1;
+          if (!right) return 1;
+          if (left === right) return b.voteCount - a.voteCount || b.id - a.id;
+          return left < right ? -1 : 1;
+        };
+      }
+
+      /* ----------------------------------------------------------------------
+         SummaryStrip.jsx
+         ---------------------------------------------------------------------- */
+      function tone(count, loud) {
+        return count > 0 ? loud : 'calm';
+      }
+
+      function stripHtml() {
+        var s = stats();
+
+        var cards = [
+          { key: 'inbox', count: s.unacknowledged, label: 'Need a date', hint: 'Reported, not picked up',
+            tone: tone(s.unacknowledged, 'wants'), on: view.bucket === 'inbox' && !view.overdue },
+          { key: 'overdue', count: s.overdue, label: 'Past their date', hint: 'Promised, still owed',
+            tone: tone(s.overdue, 'bad'), on: view.overdue },
+          { key: 'verifying', count: s.awaitingVerification, label: 'Being checked',
+            hint: 'With the people who backed them',
+            tone: 'calm', on: view.bucket === 'verifying' && !view.overdue },
+          { key: 'disputed', count: s.disputed, label: 'Disputed', hint: 'Residents say it did not hold',
+            tone: tone(s.disputed, 'warn'), on: view.bucket === 'disputed' && !view.overdue },
+          { key: 'resolved', count: s.resolved, label: 'Confirmed fixed', hint: 'Checked and closed',
+            tone: 'good', on: view.bucket === 'resolved' && !view.overdue }
+        ];
+
+        return cards.map(function (card) {
+          return (
+            '<button type="button" class="adm-stat' + (card.on ? ' is-on' : '') + '"' +
+              ' data-tone="' + card.tone + '" data-card="' + card.key + '"' +
+              ' aria-pressed="' + card.on + '">' +
+              '<span class="adm-stat-count">' + card.count + '</span>' +
+              '<span class="adm-stat-label">' + card.label + '</span>' +
+              '<span class="adm-stat-hint">' + card.hint + '</span>' +
+            '</button>'
+          );
+        }).join('');
+      }
+
+      function tabsHtml() {
+        var s = stats();
+
+        return BUCKETS.map(function (entry) {
+          var count = entry.statuses
+            ? entry.statuses.reduce(function (sum, status) { return sum + countBy(status); }, 0)
+            : s.total;
+          var on = view.bucket === entry.key;
+
+          return (
+            '<button type="button" class="adm-tab' + (on ? ' is-on' : '') + '"' +
+              ' data-tab="' + entry.key + '"' + (on ? ' aria-current="page"' : '') + '>' +
+              entry.label +
+              '<span class="adm-tab-count">' + count + '</span>' +
+            '</button>'
+          );
+        }).join('');
+      }
+
+      /* ----------------------------------------------------------------------
+         QueueRow.jsx
+         ---------------------------------------------------------------------- */
+      function actionsHtml(issue) {
+        var id = issue.id;
+
+        if (issue.status === 'REPORTED') {
+          return '<button type="button" class="btn btn-primary btn-sm" data-do="acknowledge" data-id="' + id + '">Pick up</button>';
+        }
+        if (issue.status === 'ACKNOWLEDGED') {
+          return (
+            '<button type="button" class="btn btn-sm" data-do="start" data-id="' + id + '">Crew is out</button>' +
+            '<button type="button" class="btn btn-primary btn-sm" data-do="done" data-id="' + id + '">Mark done</button>' +
+            '<button type="button" class="btn btn-quiet btn-sm" data-do="schedule" data-id="' + id + '">Change date</button>'
+          );
+        }
+        if (issue.status === 'IN_PROGRESS') {
+          return (
+            '<button type="button" class="btn btn-primary btn-sm" data-do="done" data-id="' + id + '">Mark done</button>' +
+            '<button type="button" class="btn btn-quiet btn-sm" data-do="schedule" data-id="' + id + '">Change date</button>'
+          );
+        }
+        if (issue.status === 'VERIFYING') {
+          // Nothing for a moderator to do. The window is the residents' to
+          // close, and a button here would be a way to overrule them.
+          return '<span class="adm-wait">Waiting on residents</span>';
+        }
+        if (issue.status === 'DISPUTED') {
+          // The API also accepts reopen from here, but it lands on the same
+          // status as "Go again" after doing the same clearing, so there is no
+          // second button for it. Two buttons that do one thing is a worse
+          // dashboard than one.
+          return (
+            '<button type="button" class="btn btn-primary btn-sm" data-do="start" data-id="' + id + '">Go again</button>' +
+            '<button type="button" class="btn btn-quiet btn-sm" data-do="schedule" data-id="' + id + '">New date</button>'
+          );
+        }
+        if (issue.status === 'RESOLVED') {
+          return '<button type="button" class="btn btn-quiet btn-sm" data-do="reopen" data-id="' + id + '">It came back</button>';
+        }
+        return '';
+      }
+
+      function expandHtml(issue) {
+        var facts =
+          '<div><dt>Raised by</dt><dd>' + escapeHtml(issue.author) + ' on ' + fullDate(issue.createdAt) + '</dd></div>';
+
+        if (issue.acknowledgedBy && issue.acknowledgedAt) {
+          facts +=
+            '<div><dt>Picked up by</dt><dd>' + escapeHtml(issue.acknowledgedBy) + ', ' +
+            timeAgo(issue.acknowledgedAt) + '</dd></div>';
+        }
+
+        if (issue.workNote) {
+          facts += '<div><dt>Note to residents</dt><dd>“' + escapeHtml(issue.workNote) + '”</dd></div>';
+        }
+
+        if (issue.verifyOpenedAt) {
+          facts +=
+            '<div><dt>Checking</dt><dd>Opened ' + timeAgo(issue.verifyOpenedAt) + ' · ' +
+            issue.confirmedCount + ' fixed, ' + issue.deniedCount + ' not fixed' +
+            (issue.verifyQuorum > 0 ? ' · needs ' + issue.verifyQuorum + ' to settle early' : '') +
+            '</dd></div>';
+        }
+
+        if (issue.resolvedAt) {
+          facts += '<div><dt>Closed</dt><dd>' + fullDate(issue.resolvedAt) + '</dd></div>';
+        }
+
+        return (
+          '<div class="adm-expand">' +
+            '<p class="adm-expand-body">' + escapeHtml(issue.description) + '</p>' +
+            '<dl class="adm-facts">' + facts + '</dl>' +
+            '<a class="adm-open" href="preview.html" target="_blank" rel="noreferrer">' +
+              'Read the discussion on the board' +
+            '</a>' +
+          '</div>'
+        );
+      }
+
+      function rowHtml(issue) {
+        var open = Boolean(expanded[issue.id]);
+        var gone = Boolean(moved[issue.id]);
+        var promised = isPromised(issue);
+        var checking = issue.status === 'VERIFYING';
+        var settled = issue.status === 'RESOLVED' || issue.status === 'DISPUTED';
+        var answered = issue.confirmedCount + issue.deniedCount;
+
+        var etaCell = promised
+          ? '<span class="adm-eta-date">' + shortDate(issue.etaDate) + '</span>' +
+            '<span class="adm-cell-note">' + dueLabel(issue.etaDate) + '</span>'
+          : '<span class="adm-blank" aria-label="No date promised">—</span>';
+
+        var checkCell;
+        if (checking) {
+          checkCell =
+            '<span class="adm-check-tally">' + issue.confirmedCount + ' / ' + answered + '</span>' +
+            '<span class="adm-cell-note">said fixed · ' + timeLeft(issue.verifyDeadline) + '</span>';
+        } else if (settled) {
+          checkCell =
+            '<span class="adm-check-tally">' + issue.confirmedCount + ' / ' + answered + '</span>' +
+            '<span class="adm-cell-note">' +
+              (issue.status === 'RESOLVED' ? 'confirmed it' : 'said it was fixed') +
+            '</span>';
+        } else {
+          checkCell = '<span class="adm-blank" aria-label="Not being checked">—</span>';
+        }
+
+        return (
+          '<article class="adm-row' + (open ? ' is-open' : '') + (gone ? ' is-moved' : '') + '"' +
+            ' style="--stripe:' + categoryColor(issue.category) + '" data-status="' + issue.status + '">' +
+
+            '<div class="adm-cell adm-cell-what">' +
+              '<button type="button" class="adm-title" aria-expanded="' + open + '" data-expand="' + issue.id + '">' +
+                escapeHtml(issue.title) +
+              '</button>' +
+              '<div class="adm-meta">' +
+                '<span class="status" data-status="' + issue.status + '">' + issue.statusLabel + '</span>' +
+                '<span class="tag" style="--stripe:' + categoryColor(issue.category) + '">' +
+                  escapeHtml(issue.categoryLabel) + '</span>' +
+                '<span class="adm-where">' + escapeHtml(issue.area) + '</span>' +
+                '<span class="adm-when">' + timeAgo(issue.createdAt) + '</span>' +
+              '</div>' +
+              (gone ? '<p class="adm-moved">Done — this leaves the tab next time the queue is read.</p>' : '') +
+            '</div>' +
+
+            '<div class="adm-cell adm-cell-backing">' +
+              '<span class="adm-backing-count">' + issue.voteCount + '</span>' +
+              '<span class="adm-cell-note">' +
+                (issue.voteCount === 1 ? 'backer' : 'backers') +
+                (issue.commentCount > 0 ? ' · ' + issue.commentCount + ' replies' : '') +
+              '</span>' +
+            '</div>' +
+
+            '<div class="adm-cell adm-cell-eta" data-late="' + (issue.overdue ? 'yes' : 'no') + '">' +
+              etaCell +
+            '</div>' +
+
+            '<div class="adm-cell adm-cell-check">' + checkCell + '</div>' +
+
+            '<div class="adm-cell adm-cell-do">' + actionsHtml(issue) + '</div>' +
+
+            (open ? expandHtml(issue) : '') +
+          '</article>'
+        );
+      }
+
+      /* ----------------------------------------------------------------------
+         The moves. Each one mirrors a POST to /api/admin/issues/{id}/...
+         ---------------------------------------------------------------------- */
+      function refresh(issue) {
+        issue.statusLabel = STATUS_LABEL[issue.status];
+        issue.overdue = isPromised(issue) && daysUntil(issue.etaDate) < 0;
+      }
+
+      function clearVerification(issue) {
+        // The server deletes the confirmation rows rather than keeping them, so
+        // a second window starts from nothing. Answers to "is the old repair
+        // holding" are not answers about the new one.
+        issue.confirmedCount = 0;
+        issue.deniedCount = 0;
+        issue.myConfirmation = null;
+        issue.canVerify = false;
+        delete issue.verifyOpenedAt;
+        delete issue.verifyDeadline;
+        // Not deleted: verifyQuorum is a plain int on the entity, so the API
+        // sends 0 rather than omitting it.
+        issue.verifyQuorum = 0;
+      }
+
+      // A row that no longer belongs in the tab you are looking at is marked
+      // rather than removed. Removing it would make the action feel like the row
+      // was deleted.
+      function markMoved(issue) {
+        var statuses = bucketOf(view.bucket).statuses;
+        if (statuses && statuses.indexOf(issue.status) === -1) moved[issue.id] = true;
+      }
+
+      function acknowledge(issue, etaDate, note) {
+        issue.status = 'ACKNOWLEDGED';
+        issue.etaDate = etaDate;
+        issue.workNote = note || '';
+        issue.acknowledgedAt = new Date();
+        issue.acknowledgedBy = MODERATOR;
+        refresh(issue);
+        markMoved(issue);
+        toast('Picked up, and the date is now public.', 'good');
+      }
+
+      function schedule(issue, etaDate, note) {
+        issue.etaDate = etaDate;
+        issue.workNote = note || '';
+        refresh(issue);
+        toast('New date published.', 'good');
+      }
+
+      function start(issue) {
+        // Starting again on a disputed report throws away the old window.
+        if (issue.status === 'DISPUTED') clearVerification(issue);
+        issue.status = 'IN_PROGRESS';
+        refresh(issue);
+        markMoved(issue);
+        toast('Marked as work in progress.', 'good');
+      }
+
+      function done(issue) {
+        clearVerification(issue);
+        issue.status = 'VERIFYING';
+        issue.verifyOpenedAt = new Date();
+        issue.verifyDeadline = new Date(Date.now() + VERIFY_WINDOW_DAYS * DAY);
+        issue.verifyQuorum = Math.min(VERIFY_QUORUM_CAP, Math.max(issue.voteCount, 0));
+        // Only the people who backed it are asked, so this follows votedByMe
+        // rather than being forced true. On this side of the app it makes no
+        // visible difference - a moderator has no vote to cast - but the flag is
+        // read by the resident board, and setting it for someone who never
+        // backed the report would put a vote in front of them the API would
+        // refuse.
+        issue.canVerify = issue.votedByMe;
+        delete issue.resolvedAt;
+        refresh(issue);
+        markMoved(issue);
+        toast('Handed back to the people who backed it. They have a week to check it.', 'good');
+      }
+
+      function reopen(issue) {
+        clearVerification(issue);
+        issue.status = 'IN_PROGRESS';
+        delete issue.resolvedAt;
+        refresh(issue);
+        markMoved(issue);
+        toast('Back on the pile as in progress.', 'good');
+      }
+
+      /* ----------------------------------------------------------------------
+         Toasts.jsx
+         ---------------------------------------------------------------------- */
+      function toast(text, tone) {
+        var host = document.getElementById('toasts');
+        var node = document.createElement('div');
+        node.className = 'toast';
+        node.setAttribute('data-tone', tone || 'plain');
+        node.innerHTML =
+          '<p class="toast-text">' + escapeHtml(text) + '</p>' +
+          '<button type="button" class="toast-close" aria-label="Dismiss this message">Close</button>';
+
+        node.querySelector('.toast-close').addEventListener('click', function () {
+          node.remove();
+        });
+
+        host.appendChild(node);
+        window.setTimeout(function () { node.remove(); }, 5200);
+      }
+
+      /* ----------------------------------------------------------------------
+         ScheduleDialog.jsx
+         ---------------------------------------------------------------------- */
+      function todayISO() {
+        return dateStr(0);
+      }
+
+      function openSchedule(issue, mode) {
+        scheduling = { issue: issue, first: mode === 'acknowledge' };
+
+        var first = scheduling.first;
+        document.getElementById('sched-head').textContent = first ? 'Pick this up' : 'Change the date';
+        document.getElementById('sched-why').textContent = first
+          ? 'The date and the note go straight onto the public report, so everyone backing it can see what was promised.'
+          : 'Currently promised by ' + shortDate(issue.etaDate) + '. Residents see the new date and note immediately.';
+        document.getElementById('sched-subject').textContent = issue.title;
+        document.getElementById('sched-save').textContent = first
+          ? 'Pick up and publish the date'
+          : 'Publish the new date';
+
+        document.getElementById('sched-note-hint').textContent =
+          'Optional, and public. What is actually happening — the contractor, the part on order, ' +
+          'the street it has to be dug up from.' +
+          (!first && issue.workNote ? ' Clearing this removes the note.' : '');
+
+        var date = document.getElementById('sched-date');
+        date.min = todayISO();
+        date.value = issue.etaDate || dateStr(7);
+        document.getElementById('sched-note').value = issue.workNote || '';
+
+        clearDialogErrors();
+        paintQuick();
+        document.getElementById('sched-overlay').hidden = false;
+        document.body.style.overflow = 'hidden';
+        date.focus();
+      }
+
+      function clearDialogErrors() {
+        document.getElementById('sched-error-slot').innerHTML = '';
+        document.getElementById('sched-date-error-slot').innerHTML = '';
+        document.getElementById('sched-date').setAttribute('aria-invalid', 'false');
+      }
+
+      function refuse(why, beside) {
+        document.getElementById('sched-error-slot').innerHTML =
+          '<p class="notice" role="alert">' + escapeHtml(why) + '</p>';
+        document.getElementById('sched-date-error-slot').innerHTML =
+          '<span class="field-error">' + escapeHtml(beside) + '</span>';
+        var date = document.getElementById('sched-date');
+        date.setAttribute('aria-invalid', 'true');
+        date.focus();
+      }
+
+      function paintQuick() {
+        var chosen = document.getElementById('sched-date').value;
+        document.getElementById('sched-quick').innerHTML = QUICK.map(function (option) {
+          var value = dateStr(option.days);
+          var on = chosen === value;
+          return (
+            '<button type="button" class="adm-quick-btn' + (on ? ' is-on' : '') + '"' +
+              ' data-days="' + option.days + '" aria-pressed="' + on + '">' +
+              option.label +
+            '</button>'
+          );
+        }).join('');
+
+        document.querySelectorAll('[data-days]').forEach(function (button) {
+          button.addEventListener('click', function () {
+            document.getElementById('sched-date').value = dateStr(Number(button.getAttribute('data-days')));
+            paintQuick();
+          });
+        });
+      }
+
+      function closeSchedule() {
+        scheduling = null;
+        document.getElementById('sched-overlay').hidden = true;
+        document.body.style.overflow = '';
+      }
+
+      document.getElementById('sched-form').addEventListener('submit', function (event) {
+        event.preventDefault();
+        if (!scheduling) return;
+
+        var date = document.getElementById('sched-date');
+        var note = document.getElementById('sched-note').value;
+
+        // The same two checks the dialog runs before it will send anything. The
+        // form is novalidate, so these are what actually guard it - and the
+        // server repeats them, because a form is not a security boundary.
+        if (!date.value) {
+          refuse('Give a date the work should be done by.', 'Pick a date');
+          return;
+        }
+        if (date.value < todayISO()) {
+          refuse('That date has already passed. Pick today or later.', 'Today or later');
+          return;
+        }
+
+        // ScheduleRequest trims the note and turns blank into nothing, so a note
+        // of pure whitespace is no note. Without this, spacing you cannot see
+        // renders an empty "Note to residents" row on the report.
+        note = note.trim();
+
+        if (scheduling.first) acknowledge(scheduling.issue, date.value, note);
+        else schedule(scheduling.issue, date.value, note);
+
+        closeSchedule();
+        render();
+      });
+
+      document.getElementById('sched-cancel').addEventListener('click', closeSchedule);
+
+      document.getElementById('sched-overlay').addEventListener('click', function (event) {
+        if (event.target === event.currentTarget) closeSchedule();
+      });
+
+      window.addEventListener('keydown', function (event) {
+        if (event.key === 'Escape' && scheduling) closeSchedule();
+      });
+
+      /* ----------------------------------------------------------------------
+         Render
+         ---------------------------------------------------------------------- */
+      function render() {
+        // Before anything reads a status. Any window whose week is up settles
+        // now, exactly as the backend settles them on the way into a read.
+        sweepDeadlines().forEach(function (issue) {
+          toast(
+            issue.status === 'RESOLVED'
+              ? 'Checking closed on “' + issue.title + '” — residents confirmed it.'
+              : 'Checking closed on “' + issue.title + '” — residents say it is still not fixed.',
+            issue.status === 'RESOLVED' ? 'good' : 'warn'
+          );
+        });
+
+        document.getElementById('strip').innerHTML = stripHtml();
+        document.getElementById('tabs').innerHTML = tabsHtml();
+
+        var found = rows();
+        var queue = document.getElementById('queue');
+        var isFiltering = filtering();
+
+        document.getElementById('clear-btn').hidden = !isFiltering;
+
+        document.getElementById('count').textContent =
+          found.length === 0
+            ? 'Nothing in this queue'
+            : found.length + ' ' + (found.length === 1 ? 'report' : 'reports');
+
+        if (found.length === 0) {
+          queue.innerHTML =
+            '<section class="state">' +
+              '<h2 class="state-head">' + (isFiltering ? 'Nothing matches that' : 'Queue is clear') + '</h2>' +
+              '<p>' +
+                (isFiltering
+                  ? 'No reports in this queue match what you are asking for.'
+                  : 'Nothing is waiting on you here. The other tabs may have work.') +
+              '</p>' +
+              (isFiltering
+                ? '<div class="btn-row btn-row-center">' +
+                    '<button type="button" class="btn btn-quiet" id="clear-empty">Clear filters</button>' +
+                  '</div>'
+                : '') +
+            '</section>';
+
+          if (isFiltering) document.getElementById('clear-empty').addEventListener('click', clearFilters);
+        } else {
+          queue.innerHTML =
+            '<div class="adm-table">' +
+              '<div class="adm-head" aria-hidden="true">' +
+                '<span>Report</span><span>Backing</span><span>Promised</span>' +
+                '<span>Checking</span><span>What now</span>' +
+              '</div>' +
+              found.map(rowHtml).join('') +
+            '</div>';
+        }
+
+        bind();
+      }
+
+      function bind() {
+        document.querySelectorAll('[data-card]').forEach(function (button) {
+          button.addEventListener('click', function () {
+            var key = button.getAttribute('data-card');
+            changeView(function () {
+              // The overdue card is a toggle across every queue, not a queue of
+              // its own - being late is a property of a report, not a stage.
+              if (key === 'overdue') {
+                view.bucket = 'all';
+                view.overdue = !view.overdue;
+              } else {
+                view.bucket = key;
+                view.overdue = false;
+              }
+              document.getElementById('overdue-check').checked = view.overdue;
+            });
+          });
+        });
+
+        document.querySelectorAll('[data-tab]').forEach(function (button) {
+          button.addEventListener('click', function () {
+            changeView(function () { view.bucket = button.getAttribute('data-tab'); });
+          });
+        });
+
+        document.querySelectorAll('[data-expand]').forEach(function (button) {
+          button.addEventListener('click', function () {
+            var id = Number(button.getAttribute('data-expand'));
+            if (expanded[id]) delete expanded[id];
+            else expanded[id] = true;
+            render();
+          });
+        });
+
+        document.querySelectorAll('[data-do]').forEach(function (button) {
+          button.addEventListener('click', function () {
+            var issue = byId(Number(button.getAttribute('data-id')));
+            var what = button.getAttribute('data-do');
+
+            if (what === 'acknowledge' || what === 'schedule') {
+              openSchedule(issue, what);
+              return;
+            }
+            if (what === 'start') start(issue);
+            if (what === 'done') done(issue);
+            if (what === 'reopen') reopen(issue);
+            render();
+          });
+        });
+      }
+
+      /* Any change to the view is a fresh read of the queue, and a fresh read
+         is what drops the rows actioned out of the previous one. Routing every
+         control through here is what keeps that true - in the real dashboard
+         the effect that refetches also empties `moved`, so changing the sort or
+         typing in the search box clears it just as much as switching tabs. */
+      function changeView(apply) {
+        apply();
+        moved = {};
+        render();
+      }
+
+      function clearFilters() {
+        changeView(function () {
+          view.category = '';
+          view.area = '';
+          view.overdue = false;
+          view.search = '';
+          document.getElementById('category-select').value = '';
+          document.getElementById('area-select').value = '';
+          document.getElementById('overdue-check').checked = false;
+          document.getElementById('search').value = '';
+        });
+      }
+
+      /* ----------------------------------------------------------------------
+         Controls
+         ---------------------------------------------------------------------- */
+      (function fillSelects() {
+        var category = document.getElementById('category-select');
+        CATEGORIES.forEach(function (entry) {
+          var option = document.createElement('option');
+          option.value = entry.value;
+          option.textContent = entry.label;
+          category.appendChild(option);
+        });
+
+        var area = document.getElementById('area-select');
+        AREAS.forEach(function (name) {
+          var option = document.createElement('option');
+          option.value = name;
+          option.textContent = name;
+          area.appendChild(option);
+        });
+
+        var sort = document.getElementById('sort-select');
+        SORTS.forEach(function (entry) {
+          var option = document.createElement('option');
+          option.value = entry.key;
+          option.textContent = entry.label;
+          sort.appendChild(option);
+        });
+        sort.value = view.sort;
+      })();
+
+      document.getElementById('category-select').addEventListener('change', function (event) {
+        changeView(function () { view.category = event.target.value; });
+      });
+
+      document.getElementById('area-select').addEventListener('change', function (event) {
+        changeView(function () { view.area = event.target.value; });
+      });
+
+      document.getElementById('sort-select').addEventListener('change', function (event) {
+        changeView(function () { view.sort = event.target.value; });
+      });
+
+      document.getElementById('overdue-check').addEventListener('change', function (event) {
+        changeView(function () { view.overdue = event.target.checked; });
+      });
+
+      document.getElementById('search').addEventListener('input', function (event) {
+        var typed = event.target.value;
+        // The real dashboard waits 300ms before it asks the server anything, so
+        // the Clear button and the empty state appear a beat after you stop
+        // typing rather than on every keystroke. Reproduced because without it
+        // the empty state flashes between words.
+        window.clearTimeout(searchTimer);
+        searchTimer = window.setTimeout(function () {
+          changeView(function () { view.search = typed; });
+        }, 300);
+      });
+
+      document.getElementById('clear-btn').addEventListener('click', clearFilters);
+
+      document.getElementById('signout-btn').addEventListener('click', function () {
+        toast('Nothing to sign out of here — this preview has no server. In the running app this clears the token and returns you to the board.', 'plain');
+      });
+
+      var themeBtn = document.getElementById('theme-btn');
+      function paintThemeButton() {
+        var dark = document.documentElement.getAttribute('data-theme') === 'dark';
+        themeBtn.innerHTML = dark ? THEME_SUN : THEME_MOON;
+        themeBtn.setAttribute('aria-label', dark ? 'Switch to the light theme' : 'Switch to the dark theme');
+      }
+      themeBtn.addEventListener('click', function () {
+        applyTheme(document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark');
+        paintThemeButton();
+      });
+      paintThemeButton();
+
+      render();
+    </script>
+  </body>
+</html>

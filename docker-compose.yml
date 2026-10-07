@@ -1,0 +1,31 @@
+# Postgres for local development.
+#
+#   docker compose up -d      start it
+#   docker compose down       stop it, keep the data
+#   docker compose down -v    stop it and wipe the data, so the seeder runs again
+#
+# The credentials match the defaults in backend/src/main/resources/application.properties.
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: nagarik-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: nagarik
+      POSTGRES_USER: nagarik
+      POSTGRES_PASSWORD: nagarik
+    ports:
+      - "5432:5432"
+    volumes:
+      - nagarik-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      # The API fails fast if it starts before Postgres is accepting queries,
+      # so wait for a real connection rather than just an open port.
+      test: ["CMD-SHELL", "pg_isready -U nagarik -d nagarik"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  nagarik-pgdata:

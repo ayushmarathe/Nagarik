@@ -1,0 +1,2100 @@
+/* ==========================================================================
+   Nagarik
+
+   A board where neighbours report a problem and stand behind each other's.
+   The whole product turns on one number - how many people are backing a
+   report - so that number is the loudest thing on the page and everything
+   around it is kept deliberately quiet.
+
+   Palette: a deep teal that reads civic rather than corporate, with marigold
+   reserved almost entirely for the backing count. Category colours are tuned
+   to sit inside that palette instead of shouting over it.
+
+   Radii step down with the size of the thing: 20px on dialogs, 14px on cards,
+   10px on inputs, 6px on chips. One radius everywhere is what makes an
+   interface look assembled from a kit.
+   ========================================================================== */
+
+:root {
+  color-scheme: light;
+
+  /* Surfaces */
+  --canvas: #f2f6f6;
+  --canvas-glow: rgba(15, 124, 138, 0.09);
+  --surface: #ffffff;
+  --surface-sunk: #eef3f3;
+  --surface-raised: #ffffff;
+
+  /* Ink */
+  --ink: #0b1f22;
+  --ink-soft: #3d5559;
+  --ink-faint: #6d8589;
+  --ink-invert: #ffffff;
+
+  /* Lines */
+  --line: #dde6e6;
+  --line-strong: #c6d4d5;
+
+  /* Brand */
+  --brand: #0f7c8a;
+  --brand-lift: #17a2ac;
+  --brand-deep: #0a5b66;
+  --brand-wash: rgba(15, 124, 138, 0.08);
+  --brand-mark-dot: #ffffff;
+
+  /* The one loud colour. Used for the backing count and almost nothing else. */
+  --signal: #d98a1f;
+  --signal-lift: #f0a93c;
+  --signal-wash: rgba(217, 138, 31, 0.12);
+
+  /* Meaning */
+  --good: #157f5f;
+  --good-wash: rgba(21, 127, 95, 0.12);
+  --warn: #b26a00;
+  --warn-wash: rgba(178, 106, 0, 0.12);
+  --bad: #bb3b32;
+  --bad-wash: rgba(187, 59, 50, 0.1);
+
+  /* Categories */
+  --electricity: #d1603d;
+  --water: #2b7fb8;
+  --roads: #7a6698;
+  --drainage: #3f8f7b;
+  --garbage: #8a7a35;
+  --streetlight: #c08a2e;
+  --other: #6b7f85;
+
+  /* Elevation. Deliberately not one shadow reused under everything: cards
+     carry a hairline and barely lift, dialogs actually float. */
+  --lift-card: 0 1px 2px rgba(11, 31, 34, 0.04);
+  --lift-hover: 0 6px 20px -8px rgba(11, 31, 34, 0.16);
+  --lift-dialog: 0 32px 64px -24px rgba(11, 31, 34, 0.32);
+  --lift-menu: 0 18px 38px -16px rgba(11, 31, 34, 0.28);
+
+  /* Radii */
+  --r-dialog: 20px;
+  --r-card: 14px;
+  --r-input: 10px;
+  --r-btn: 9px;
+  --r-chip: 6px;
+
+  /* Type scale.
+
+     One scale, nine steps, and nothing between them. The sizes used to be
+     picked per-component, which produced eighteen different values between
+     0.68rem and 0.95rem - differences of a sixth of a pixel that read as
+     sloppiness rather than hierarchy. Steps are roughly a 1.15 ratio in the UI
+     range and open up towards the display sizes, where a jump has to be
+     obvious to count as a jump.
+
+     --t-md is the body size and the anchor. Everything else is a deliberate
+     step away from it. */
+  --t-2xs: 0.6875rem; /* 11px - the smallest thing that stays legible */
+  --t-xs: 0.75rem; /* 12px - cell notes, chips, captions */
+  --t-sm: 0.8125rem; /* 13px - meta, labels, buttons */
+  --t-md: 0.9375rem; /* 15px - body */
+  --t-lg: 1.0625rem; /* 17px - lead paragraphs */
+  --t-xl: 1.3125rem; /* 21px - card and section titles */
+  --t-2xl: 1.5rem; /* 24px - page headings */
+  --t-3xl: 1.75rem; /* 28px - the dashboard's counts */
+  --t-4xl: 2.25rem; /* 36px - the backing count, and little else */
+
+  /* Line heights, as ratios. Tight on display sizes because large type needs
+     less leading to hold together, open on body text because it needs more. */
+  --lh-tight: 1.1;
+  --lh-snug: 1.3;
+  --lh-body: 1.55;
+
+  --shell: 78rem;
+  --ease: cubic-bezier(0.22, 0.68, 0.36, 1);
+}
+
+[data-theme='dark'] {
+  color-scheme: dark;
+
+  --canvas: #081416;
+  --canvas-glow: rgba(23, 162, 172, 0.12);
+  --surface: #0f2124;
+  --surface-sunk: #0b1b1e;
+  --surface-raised: #14282c;
+
+  --ink: #e8f1f1;
+  --ink-soft: #a7bfc2;
+  --ink-faint: #7b979b;
+  --ink-invert: #04191c;
+
+  --line: #1e383c;
+  --line-strong: #2b4a4f;
+
+  --brand: #2bb3bd;
+  --brand-lift: #4fd0d8;
+  --brand-deep: #14848f;
+  --brand-wash: rgba(43, 179, 189, 0.14);
+  --brand-mark-dot: #081416;
+
+  --signal: #f0ad46;
+  --signal-lift: #ffc56b;
+  --signal-wash: rgba(240, 173, 70, 0.16);
+
+  --good: #43c398;
+  --good-wash: rgba(67, 195, 152, 0.16);
+  --warn: #e0a33f;
+  --warn-wash: rgba(224, 163, 63, 0.16);
+  --bad: #f0756a;
+  --bad-wash: rgba(240, 117, 106, 0.16);
+
+  --electricity: #ef8b64;
+  --water: #5fb0e4;
+  --roads: #ac93cc;
+  --drainage: #5cbfa5;
+  --garbage: #c3ad55;
+  --streetlight: #efb75c;
+  --other: #93aab0;
+
+  /* Shadows barely read on a dark canvas; the borders do the lifting. */
+  --lift-card: none;
+  --lift-hover: 0 6px 20px -8px rgba(0, 0, 0, 0.5);
+  --lift-dialog: 0 32px 64px -24px rgba(0, 0, 0, 0.7);
+  --lift-menu: 0 18px 38px -16px rgba(0, 0, 0, 0.6);
+}
+
+/* --------------------------------------------------------------------------
+   Base
+   -------------------------------------------------------------------------- */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--canvas);
+  color: var(--ink);
+  font-family: 'Public Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  font-size: var(--t-md);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* One soft wash of brand colour behind the top of the page, so the header has
+   something to sit on. Fixed, so it does not travel with the scroll. */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0 0 auto 0;
+  height: 420px;
+  background: radial-gradient(120% 100% at 50% 0%, var(--canvas-glow), transparent 70%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+h1,
+h2,
+h3 {
+  font-family: 'Bricolage Grotesque', 'Public Sans', system-ui, sans-serif;
+  font-weight: 600;
+  letter-spacing: -0.018em;
+  line-height: 1.2;
+  margin: 0;
+}
+
+p {
+  margin: 0;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+}
+
+:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.app {
+  position: relative;
+  z-index: 1;
+  min-height: 100vh;
+}
+
+/* --------------------------------------------------------------------------
+   Top bar
+   -------------------------------------------------------------------------- */
+
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  background: color-mix(in srgb, var(--canvas) 82%, transparent);
+  backdrop-filter: blur(14px) saturate(1.4);
+  -webkit-backdrop-filter: blur(14px) saturate(1.4);
+  border-bottom: 1px solid var(--line);
+}
+
+.topbar-inner {
+  max-width: var(--shell);
+  margin: 0 auto;
+  padding: 0.85rem 1.25rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  font-size: var(--t-xl);
+  letter-spacing: -0.03em;
+}
+
+.brand-name {
+  font-family: 'Bricolage Grotesque', 'Public Sans', system-ui, sans-serif;
+  font-weight: 700;
+}
+
+.brand-mark {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  color: var(--brand);
+  background: linear-gradient(155deg, var(--brand-wash), transparent);
+  border: 1px solid var(--line);
+}
+
+.standing-line {
+  color: var(--ink-faint);
+  font-size: var(--t-sm);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.standing-line strong {
+  color: var(--ink);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* A hairline rather than a middle dot: it separates without reading as
+   punctuation somebody typed. */
+.standing-sep {
+  width: 1px;
+  height: 11px;
+  background: var(--line-strong);
+}
+
+.topbar-actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.icon-btn {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--r-btn);
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink-soft);
+  cursor: pointer;
+  transition: color 0.16s var(--ease), border-color 0.16s var(--ease);
+}
+
+.icon-btn:hover {
+  color: var(--brand);
+  border-color: var(--line-strong);
+}
+
+/* Holds the space a name is about to occupy while the stored token is
+   checked, so the header does not jump when the answer arrives. */
+.who-skeleton {
+  width: 104px;
+  height: 34px;
+  border-radius: var(--r-btn);
+  background: var(--surface-sunk);
+}
+
+.menu {
+  position: relative;
+}
+
+.who-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.28rem 0.6rem 0.28rem 0.3rem;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  cursor: pointer;
+  transition: border-color 0.16s var(--ease);
+}
+
+.who-btn:hover {
+  border-color: var(--line-strong);
+}
+
+.who-name {
+  font-size: var(--t-md);
+  font-weight: 500;
+  max-width: 11ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.avatar {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: linear-gradient(150deg, var(--brand-lift), var(--brand-deep));
+  color: #fff;
+  font-family: 'Bricolage Grotesque', sans-serif;
+  font-size: var(--t-sm);
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.avatar-sm {
+  width: 26px;
+  height: 26px;
+  font-size: var(--t-xs);
+}
+
+.role-chip {
+  padding: 0.1rem 0.4rem;
+  border-radius: var(--r-chip);
+  background: var(--brand-wash);
+  color: var(--brand-deep);
+  font-size: var(--t-2xs);
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+[data-theme='dark'] .role-chip {
+  color: var(--brand-lift);
+}
+
+.menu-sheet {
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  right: 0;
+  min-width: 14rem;
+  padding: 0.4rem;
+  border-radius: var(--r-card);
+  border: 1px solid var(--line);
+  background: var(--surface-raised);
+  box-shadow: var(--lift-menu);
+  animation: pop 0.16s var(--ease);
+}
+
+.menu-head {
+  display: flex;
+  flex-direction: column;
+  padding: 0.5rem 0.6rem 0.6rem;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 0.3rem;
+}
+
+.menu-head-name {
+  font-weight: 600;
+  font-size: var(--t-md);
+}
+
+.menu-head-mail {
+  color: var(--ink-faint);
+  font-size: var(--t-sm);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.menu-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 0.5rem 0.6rem;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  font-size: var(--t-md);
+  cursor: pointer;
+}
+
+.menu-item:hover {
+  background: var(--surface-sunk);
+  color: var(--brand);
+}
+
+/* --------------------------------------------------------------------------
+   Layout
+   -------------------------------------------------------------------------- */
+
+.board {
+  max-width: var(--shell);
+  margin: 0 auto;
+  padding: 1.5rem 1.25rem 5rem;
+  display: grid;
+  gap: 1.25rem;
+  grid-template-columns: 1fr;
+}
+
+.rail {
+  display: none;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.rail.is-open {
+  display: flex;
+}
+
+.feed-pane {
+  min-width: 0;
+}
+
+@media (min-width: 56rem) {
+  .board {
+    grid-template-columns: 19rem minmax(0, 1fr);
+    align-items: start;
+    gap: 1.5rem;
+    padding-top: 2rem;
+  }
+
+  .rail {
+    display: flex;
+    position: sticky;
+    top: 5rem;
+    max-height: calc(100vh - 6.5rem);
+    overflow-y: auto;
+    /* The rail scrolls on its own; hide the bar until it is wanted. */
+    scrollbar-width: thin;
+  }
+
+  /* Element plus class, deliberately. The button is `btn btn-quiet
+     rail-toggle`, and `.btn { display: inline-flex }` is declared ~900 lines
+     below this block - same specificity, later in the file, so a plain
+     `.rail-toggle { display: none }` loses and the Filters button stays visible
+     on desktop next to the rail it is supposed to open. `button.rail-toggle`
+     outranks `.btn` and the rule holds wherever it sits in the file. */
+  button.rail-toggle {
+    display: none;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   Cards
+   -------------------------------------------------------------------------- */
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+  box-shadow: var(--lift-card);
+}
+
+/* --------------------------------------------------------------------------
+   Feed controls
+   -------------------------------------------------------------------------- */
+
+.feed-bar {
+  display: flex;
+  gap: 0.6rem;
+  align-items: flex-start;
+  margin-bottom: 0.85rem;
+}
+
+.search {
+  flex: 1;
+  min-width: 0;
+}
+
+.search-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.search-field {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.search-icon {
+  position: absolute;
+  left: 0.75rem;
+  color: var(--ink-faint);
+  pointer-events: none;
+}
+
+.search-input {
+  padding-left: 2.2rem;
+  padding-right: 4.5rem;
+}
+
+.search-busy {
+  position: absolute;
+  right: 3.6rem;
+  width: 13px;
+  height: 13px;
+  border: 2px solid var(--line-strong);
+  border-top-color: var(--brand);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+
+.search-clear {
+  position: absolute;
+  right: 0.45rem;
+  padding: 0.25rem 0.5rem;
+  border: 0;
+  border-radius: var(--r-chip);
+  background: var(--surface-sunk);
+  color: var(--ink-soft);
+  font-size: var(--t-sm);
+  cursor: pointer;
+}
+
+.search-clear:hover {
+  color: var(--ink);
+}
+
+.rail-toggle {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.rail-toggle-dot {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--signal);
+}
+
+.feed-count {
+  color: var(--ink-faint);
+  font-size: var(--t-sm);
+  margin-bottom: 0.7rem;
+  font-variant-numeric: tabular-nums;
+}
+
+/* --------------------------------------------------------------------------
+   Feed rows
+
+   Two columns: the backing on the left, everything else on the right. The
+   backing is the point, so it gets the width and the weight.
+   -------------------------------------------------------------------------- */
+
+.feed {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+}
+
+.entry {
+  display: grid;
+  grid-template-columns: 4.4rem minmax(0, 1fr);
+  gap: 1rem;
+  padding: 1rem 1.15rem 1rem 0.85rem;
+  position: relative;
+  overflow: hidden;
+  transition: border-color 0.18s var(--ease), box-shadow 0.18s var(--ease);
+  animation: rise 0.32s var(--ease) both;
+  animation-delay: var(--delay, 0ms);
+}
+
+/* A thin edge in the category colour. It identifies the row at a glance
+   without painting the whole card. */
+.entry::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0.85rem;
+  bottom: 0.85rem;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: var(--stripe, var(--line-strong));
+}
+
+.entry:hover {
+  border-color: var(--line-strong);
+  box-shadow: var(--lift-hover);
+}
+
+.entry-main {
+  min-width: 0;
+}
+
+.entry-title {
+  font-size: var(--t-lg);
+  margin-bottom: 0.25rem;
+}
+
+.title-btn {
+  border: 0;
+  background: none;
+  padding: 0;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+.title-btn:hover {
+  color: var(--brand);
+}
+
+.entry-excerpt {
+  color: var(--ink-soft);
+  font-size: var(--t-md);
+  margin-bottom: 0.6rem;
+  /* Under 80 characters keeps a line scannable. */
+  max-width: 68ch;
+}
+
+.entry-foot {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  font-size: var(--t-sm);
+  color: var(--ink-faint);
+}
+
+/* Hairlines between the plain-text facts, for the same reason as in the header:
+   they separate without reading as punctuation somebody typed. The first one
+   also does the work of parting the chips from the text. */
+.entry-where::before,
+.entry-replies::before,
+.entry-when::before {
+  content: '';
+  display: inline-block;
+  width: 1px;
+  height: 9px;
+  margin-right: 0.5rem;
+  background: var(--line-strong);
+  vertical-align: -1px;
+}
+
+.tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.34rem;
+  padding: 0.14rem 0.45rem;
+  border-radius: var(--r-chip);
+  background: color-mix(in srgb, var(--stripe) 12%, transparent);
+  color: var(--stripe);
+  font-weight: 600;
+  font-size: var(--t-xs);
+}
+
+.status {
+  padding: 0.14rem 0.45rem;
+  border-radius: var(--r-chip);
+  font-weight: 600;
+  font-size: var(--t-xs);
+}
+
+.status[data-status='REPORTED'] {
+  background: var(--bad-wash);
+  color: var(--bad);
+}
+
+.status[data-status='ACKNOWLEDGED'] {
+  background: var(--warn-wash);
+  color: var(--warn);
+}
+
+.status[data-status='IN_PROGRESS'] {
+  background: var(--brand-wash);
+  color: var(--brand-deep);
+}
+
+/* The one place outside the backing count where marigold is allowed.
+   "Being checked" is the other moment the board asks a resident to act, it is
+   rare - a handful of reports at a time - and it has to be findable in a
+   column of teal and grey. */
+.status[data-status='VERIFYING'] {
+  background: var(--signal-wash);
+  color: var(--signal);
+}
+
+/* Solid rather than washed, because it has to be distinguishable from
+   REPORTED at a glance and both of them are red. A report that failed its
+   check is the loudest thing in any queue it appears in. */
+.status[data-status='DISPUTED'] {
+  background: var(--bad);
+  color: #fff;
+}
+
+.status[data-status='RESOLVED'] {
+  background: var(--good-wash);
+  color: var(--good);
+}
+
+/* A small fact hung off a row - a promised date, usually. Neutral unless the
+   date has passed, which is the only time it is worth reading. */
+.chip {
+  padding: 0.14rem 0.45rem;
+  border-radius: var(--r-chip);
+  font-weight: 600;
+  font-size: var(--t-xs);
+  background: var(--surface-sunk);
+  color: var(--ink-soft);
+  white-space: nowrap;
+}
+
+.chip[data-late='yes'] {
+  background: var(--bad-wash);
+  color: var(--bad);
+}
+
+/* --------------------------------------------------------------------------
+   Backing - the loudest thing on the page
+   -------------------------------------------------------------------------- */
+
+.backing {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.1rem;
+  padding-top: 0.15rem;
+}
+
+.vote {
+  display: grid;
+  place-items: center;
+  width: 2.5rem;
+  height: 2rem;
+  border-radius: var(--r-btn);
+  border: 1px solid var(--line);
+  background: var(--surface-sunk);
+  color: var(--ink-faint);
+  cursor: pointer;
+  transition: transform 0.14s var(--ease), background 0.16s var(--ease),
+    color 0.16s var(--ease), border-color 0.16s var(--ease);
+}
+
+.vote:hover:not(:disabled) {
+  color: var(--signal);
+  border-color: var(--signal);
+  transform: translateY(-1px);
+}
+
+.vote:active:not(:disabled) {
+  transform: translateY(0) scale(0.96);
+}
+
+.vote[aria-pressed='true'] {
+  background: var(--signal);
+  border-color: var(--signal);
+  color: #fff;
+}
+
+[data-theme='dark'] .vote[aria-pressed='true'] {
+  color: var(--ink-invert);
+}
+
+.vote:disabled {
+  opacity: 0.55;
+  cursor: progress;
+}
+
+.backing-count {
+  font-family: 'Bricolage Grotesque', sans-serif;
+  font-size: var(--t-2xl);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+
+.backing-word {
+  font-size: var(--t-2xs);
+  color: var(--ink-faint);
+  line-height: 1;
+}
+
+/* --------------------------------------------------------------------------
+   Filters
+   -------------------------------------------------------------------------- */
+
+.filters {
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.15rem;
+}
+
+.filter-block {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+/* Sentence case and quiet. A tracked-out capital label here would be chrome
+   pretending to be structure. */
+.filter-head {
+  font-size: var(--t-sm);
+  font-weight: 600;
+  color: var(--ink-faint);
+  letter-spacing: 0;
+}
+
+.segmented {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 2px;
+  padding: 2px;
+  border-radius: var(--r-input);
+  background: var(--surface-sunk);
+  border: 1px solid var(--line);
+}
+
+.segment {
+  padding: 0.34rem 0.3rem;
+  border: 0;
+  border-radius: 7px;
+  background: none;
+  color: var(--ink-faint);
+  font-size: var(--t-sm);
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.16s var(--ease), color 0.16s var(--ease);
+}
+
+.segment:hover {
+  color: var(--ink);
+}
+
+.segment[aria-pressed='true'] {
+  background: var(--surface);
+  color: var(--ink);
+  font-weight: 600;
+  box-shadow: var(--lift-card);
+}
+
+.legend {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.legend-row {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  width: 100%;
+  padding: 0.38rem 0.45rem;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.14s var(--ease);
+}
+
+.legend-row:hover {
+  background: var(--surface-sunk);
+}
+
+.legend-row[aria-pressed='true'] {
+  background: var(--brand-wash);
+}
+
+.legend-row[aria-pressed='true'] .legend-label {
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.legend-swatch {
+  width: 9px;
+  height: 9px;
+  border-radius: 3px;
+  background: var(--stripe, var(--ink-faint));
+  flex-shrink: 0;
+}
+
+.legend-swatch-all {
+  background: linear-gradient(135deg, var(--brand-lift), var(--brand-deep));
+}
+
+.legend-label {
+  flex: 1;
+  font-size: var(--t-sm);
+  color: var(--ink-soft);
+}
+
+.legend-count {
+  font-size: var(--t-sm);
+  color: var(--ink-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.field-inline {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.field-inline-label {
+  font-size: var(--t-sm);
+  color: var(--ink-soft);
+}
+
+/* --------------------------------------------------------------------------
+   Standing
+   -------------------------------------------------------------------------- */
+
+.standing {
+  padding: 1rem;
+}
+
+.standing-head {
+  font-size: var(--t-sm);
+  font-weight: 600;
+  color: var(--ink-faint);
+  margin-bottom: 0.6rem;
+}
+
+.standing-empty {
+  color: var(--ink-faint);
+  font-size: var(--t-sm);
+}
+
+.standing-hero {
+  display: flex;
+  align-items: baseline;
+  gap: 0.45rem;
+  margin-bottom: 0.7rem;
+}
+
+.standing-big-num {
+  font-family: 'Bricolage Grotesque', sans-serif;
+  font-size: var(--t-4xl);
+  font-weight: 700;
+  letter-spacing: -0.04em;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.standing-big-word {
+  font-size: var(--t-sm);
+  color: var(--ink-faint);
+}
+
+.progress {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--surface-sunk);
+  overflow: hidden;
+}
+
+.progress-fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--brand), var(--brand-lift));
+  transition: width 0.5s var(--ease);
+}
+
+.progress-note {
+  margin-top: 0.35rem;
+  font-size: var(--t-sm);
+  color: var(--ink-faint);
+}
+
+.standing-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1px;
+  margin: 0.9rem 0 0;
+  padding: 0;
+  background: var(--line);
+  border: 1px solid var(--line);
+  border-radius: var(--r-input);
+  overflow: hidden;
+}
+
+.standing-cell {
+  background: var(--surface);
+  padding: 0.55rem 0.65rem;
+}
+
+.standing-cell dt {
+  font-size: var(--t-xs);
+  color: var(--ink-faint);
+}
+
+.standing-cell dd {
+  margin: 0;
+  font-family: 'Bricolage Grotesque', sans-serif;
+  font-size: var(--t-lg);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.standing-breakdown {
+  margin-top: 1rem;
+}
+
+.standing-sub {
+  font-size: var(--t-sm);
+  font-weight: 600;
+  color: var(--ink-faint);
+  margin-bottom: 0.45rem;
+}
+
+.bars {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.bar-row {
+  display: grid;
+  grid-template-columns: 5.4rem 1fr 1.6rem;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.3rem 0.45rem;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.14s var(--ease);
+}
+
+.bar-row:hover {
+  background: var(--surface-sunk);
+}
+
+.bar-label {
+  font-size: var(--t-sm);
+  color: var(--ink-soft);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bar-track {
+  height: 5px;
+  border-radius: 999px;
+  background: var(--surface-sunk);
+  overflow: hidden;
+}
+
+.bar-fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--stripe, var(--brand));
+  opacity: 0.85;
+}
+
+.bar-count {
+  font-size: var(--t-sm);
+  color: var(--ink-faint);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* --------------------------------------------------------------------------
+   Detail
+   -------------------------------------------------------------------------- */
+
+.detail {
+  padding: 1.35rem 1.5rem;
+  position: relative;
+  overflow: hidden;
+}
+
+.detail::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 3px;
+  background: var(--stripe, var(--brand));
+}
+
+.back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink-faint);
+  font-size: var(--t-sm);
+  cursor: pointer;
+  margin-bottom: 0.9rem;
+}
+
+.back-btn:hover {
+  color: var(--brand);
+}
+
+.detail-title {
+  font-size: var(--t-2xl);
+  letter-spacing: -0.025em;
+  margin-bottom: 0.2rem;
+}
+
+.detail-title:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 4px;
+}
+
+.detail-where {
+  color: var(--ink-faint);
+  font-size: var(--t-md);
+  margin-bottom: 0.8rem;
+}
+
+.detail-body {
+  margin: 1rem 0 1.25rem;
+  color: var(--ink-soft);
+  max-width: 70ch;
+  white-space: pre-wrap;
+}
+
+.detail-strip {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+  padding: 0.9rem 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+
+.detail-backing {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+}
+
+.detail-backing .backing {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.5rem;
+  padding-top: 0;
+}
+
+.detail-backing .backing-word {
+  font-size: var(--t-sm);
+}
+
+/* The moderator's control used to live here as a dropdown. It is now a link to
+   the dashboard, styled as an ordinary quiet button, so only the resident-side
+   note needs a rule of its own. */
+.status-note {
+  margin-left: auto;
+  text-align: right;
+}
+
+.detail-strip .btn-quiet {
+  margin-left: auto;
+}
+
+.byline {
+  color: var(--ink-faint);
+  font-size: var(--t-sm);
+}
+
+.detail > .byline:last-child {
+  margin-top: 0.9rem;
+}
+
+/* --------------------------------------------------------------------------
+   Discussion
+   -------------------------------------------------------------------------- */
+
+.discussion {
+  margin-top: 1rem;
+  padding: 1.35rem 1.5rem;
+}
+
+.discussion-head {
+  font-size: var(--t-md);
+  margin-bottom: 0.9rem;
+}
+
+.comments {
+  list-style: none;
+  margin: 0 0 1.35rem;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.comment {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.7rem;
+}
+
+.comment-main {
+  min-width: 0;
+}
+
+.comment-head {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  margin-bottom: 0.15rem;
+}
+
+.comment-who {
+  font-weight: 600;
+  font-size: var(--t-md);
+}
+
+.comment-when {
+  font-size: var(--t-xs);
+  color: var(--ink-faint);
+}
+
+.comment-body {
+  color: var(--ink-soft);
+  font-size: var(--t-md);
+  max-width: 68ch;
+  white-space: pre-wrap;
+}
+
+.reply-box {
+  padding-top: 1.1rem;
+  border-top: 1px solid var(--line);
+}
+
+/* --------------------------------------------------------------------------
+   Forms
+   -------------------------------------------------------------------------- */
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin-bottom: 1rem;
+}
+
+.field label {
+  font-size: var(--t-sm);
+  font-weight: 500;
+}
+
+.hint {
+  font-size: var(--t-sm);
+  color: var(--ink-faint);
+}
+
+.input,
+.select,
+.textarea {
+  width: 100%;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--line);
+  border-radius: var(--r-input);
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  transition: border-color 0.16s var(--ease), box-shadow 0.16s var(--ease);
+}
+
+.input::placeholder,
+.textarea::placeholder {
+  color: var(--ink-faint);
+}
+
+.input:focus,
+.select:focus,
+.textarea:focus {
+  outline: none;
+  border-color: var(--brand);
+  box-shadow: 0 0 0 3px var(--brand-wash);
+}
+
+.textarea {
+  min-height: 6.5rem;
+  resize: vertical;
+  line-height: 1.55;
+}
+
+.select {
+  cursor: pointer;
+  appearance: none;
+  padding-right: 2rem;
+  /* The arrow is drawn here rather than left to the platform, so it matches in
+     both themes instead of turning into a white wedge on a dark field. */
+  background-image: linear-gradient(45deg, transparent 50%, currentColor 50%),
+    linear-gradient(135deg, currentColor 50%, transparent 50%);
+  background-position: calc(100% - 1rem) 55%, calc(100% - 0.72rem) 55%;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+}
+
+.input[aria-invalid='true'],
+.select[aria-invalid='true'],
+.textarea[aria-invalid='true'] {
+  border-color: var(--bad);
+}
+
+.field-error {
+  font-size: var(--t-sm);
+  color: var(--bad);
+}
+
+.input-group {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.input-group .input {
+  padding-right: 4rem;
+}
+
+.input-affix {
+  position: absolute;
+  right: 0.4rem;
+  padding: 0.22rem 0.5rem;
+  border: 0;
+  border-radius: var(--r-chip);
+  background: var(--surface-sunk);
+  color: var(--ink-soft);
+  font-size: var(--t-sm);
+  cursor: pointer;
+}
+
+.input-affix:hover {
+  color: var(--ink);
+}
+
+.panel-head {
+  font-size: var(--t-xl);
+  margin-bottom: 1.1rem;
+}
+
+/* The report form is handed its surface by whatever is holding it - today a
+   dialog, which already has padding and a border. So this only owns the
+   spacing between its own children. */
+.panel {
+  display: block;
+}
+
+.panel .field:last-of-type {
+  margin-bottom: 1.25rem;
+}
+
+/* --------------------------------------------------------------------------
+   Buttons
+   -------------------------------------------------------------------------- */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 0.52rem 0.95rem;
+  border-radius: var(--r-btn);
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: var(--t-md);
+  font-weight: 500;
+  cursor: pointer;
+  transition: transform 0.12s var(--ease), border-color 0.16s var(--ease),
+    background 0.16s var(--ease), box-shadow 0.16s var(--ease);
+}
+
+.btn:hover:not(:disabled) {
+  border-color: var(--line-strong);
+}
+
+.btn:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  border-color: transparent;
+  background: linear-gradient(155deg, var(--brand-lift), var(--brand));
+  color: #fff;
+  font-weight: 600;
+  box-shadow: 0 1px 2px rgba(11, 31, 34, 0.14);
+}
+
+.btn-primary:hover:not(:disabled) {
+  box-shadow: 0 6px 18px -8px var(--brand);
+}
+
+[data-theme='dark'] .btn-primary {
+  color: var(--ink-invert);
+}
+
+.btn-quiet {
+  background: transparent;
+  color: var(--ink-soft);
+}
+
+.btn-quiet:hover:not(:disabled) {
+  background: var(--surface);
+  color: var(--ink);
+}
+
+.btn-wide {
+  width: 100%;
+}
+
+/* For rows of actions in a dense list, where a full-size button would set the
+   row height. Used by the dashboard queue. */
+.btn-sm {
+  padding: 0.3rem 0.6rem;
+  font-size: var(--t-sm);
+  border-radius: var(--r-chip);
+}
+
+.btn-row {
+  display: flex;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.btn-row-center {
+  justify-content: center;
+}
+
+.linkish {
+  border: 0;
+  background: none;
+  padding: 0;
+  color: var(--brand);
+  font: inherit;
+  font-weight: 500;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.linkish:hover {
+  color: var(--brand-deep);
+}
+
+[data-theme='dark'] .linkish:hover {
+  color: var(--brand-lift);
+}
+
+.more {
+  margin-top: 1rem;
+}
+
+/* --------------------------------------------------------------------------
+   Dialogs
+   -------------------------------------------------------------------------- */
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  padding: 1.25rem;
+  background: rgba(8, 20, 22, 0.5);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+  animation: fade 0.16s var(--ease);
+  overflow-y: auto;
+}
+
+.dialog {
+  width: 100%;
+  max-width: 25rem;
+  padding: 1.5rem;
+  border-radius: var(--r-dialog);
+  border: 1px solid var(--line);
+  background: var(--surface-raised);
+  box-shadow: var(--lift-dialog);
+  animation: pop 0.2s var(--ease);
+}
+
+.dialog-wide {
+  max-width: 34rem;
+}
+
+/* Sign-in is four short fields. Holding it narrower than the default keeps the
+   labels near the boxes they belong to. */
+.dialog-auth {
+  max-width: 23rem;
+}
+
+.dialog-head {
+  font-size: var(--t-xl);
+  margin-bottom: 0.35rem;
+}
+
+.dialog-why {
+  color: var(--ink-faint);
+  font-size: var(--t-sm);
+  margin-bottom: 1.15rem;
+}
+
+.dialog-switch {
+  margin-top: 1rem;
+  padding-top: 0.9rem;
+  border-top: 1px solid var(--line);
+  font-size: var(--t-sm);
+  color: var(--ink-faint);
+}
+
+/* --------------------------------------------------------------------------
+   Notices, states, toasts
+   -------------------------------------------------------------------------- */
+
+.notice {
+  padding: 0.6rem 0.75rem;
+  margin-bottom: 1rem;
+  border-radius: var(--r-input);
+  border: 1px solid color-mix(in srgb, var(--bad) 35%, transparent);
+  background: var(--bad-wash);
+  color: var(--bad);
+  font-size: var(--t-sm);
+}
+
+.state {
+  padding: 3rem 1.5rem;
+  text-align: center;
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--r-card);
+  color: var(--ink-faint);
+}
+
+.state-head {
+  font-size: var(--t-lg);
+  color: var(--ink);
+  margin-bottom: 0.4rem;
+}
+
+.state p {
+  max-width: 46ch;
+  margin: 0 auto 1.1rem;
+  font-size: var(--t-md);
+}
+
+.toasts {
+  position: fixed;
+  bottom: 1.25rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 80;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  width: min(26rem, calc(100vw - 2.5rem));
+}
+
+.toast {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.65rem 0.75rem 0.65rem 0.9rem;
+  border-radius: var(--r-input);
+  border: 1px solid var(--line);
+  background: var(--surface-raised);
+  box-shadow: var(--lift-menu);
+  animation: slide-up 0.22s var(--ease);
+}
+
+.toast::before {
+  content: '';
+  width: 3px;
+  align-self: stretch;
+  border-radius: 999px;
+  background: var(--ink-faint);
+}
+
+.toast[data-tone='good']::before {
+  background: var(--good);
+}
+
+.toast[data-tone='bad']::before {
+  background: var(--bad);
+}
+
+.toast-text {
+  flex: 1;
+  font-size: var(--t-sm);
+}
+
+.toast-close {
+  border: 0;
+  background: none;
+  color: var(--ink-faint);
+  font-size: var(--t-sm);
+  cursor: pointer;
+  padding: 0.2rem 0.3rem;
+}
+
+.toast-close:hover {
+  color: var(--ink);
+}
+
+/* --------------------------------------------------------------------------
+   Skeleton
+   -------------------------------------------------------------------------- */
+
+.skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+}
+
+.skeleton-row {
+  display: grid;
+  grid-template-columns: 4.4rem minmax(0, 1fr);
+  gap: 1rem;
+  padding: 1rem 1.15rem;
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+  background: var(--surface);
+}
+
+.skeleton-num,
+.skeleton-bar {
+  border-radius: 6px;
+  background: linear-gradient(
+    90deg,
+    var(--surface-sunk) 0%,
+    color-mix(in srgb, var(--line) 60%, var(--surface-sunk)) 50%,
+    var(--surface-sunk) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.4s linear infinite;
+  animation-delay: calc(var(--i, 0) * 90ms);
+}
+
+.skeleton-num {
+  height: 3.2rem;
+}
+
+.skeleton-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  justify-content: center;
+}
+
+.skeleton-bar {
+  height: 0.7rem;
+}
+
+/* --------------------------------------------------------------------------
+   Progress - what was promised, and whether the neighbourhood agrees it
+   happened
+
+   Named "track" rather than "progress" because .progress is already the thin
+   share-fixed bar in the standing card. Two meanings for one class is how a
+   6px overflow-hidden rule ends up clipping a whole panel.
+   -------------------------------------------------------------------------- */
+
+.track {
+  margin: 0 0 1.25rem;
+  padding: 0.95rem 1.05rem;
+  border: 1px solid var(--line);
+  border-radius: var(--r-input);
+  background: var(--surface-sunk);
+}
+
+/* Nothing has happened yet. Said once, quietly, with no border competing for
+   attention against a panel that has nothing in it. */
+.track-waiting {
+  background: none;
+  border-style: dashed;
+}
+
+.track-line {
+  font-size: var(--t-md);
+  color: var(--ink-soft);
+}
+
+.track-good {
+  color: var(--good);
+}
+
+.track-bad {
+  color: var(--bad);
+}
+
+.track-note {
+  margin-top: 0.55rem;
+  color: var(--ink-soft);
+  font-size: var(--t-md);
+  font-style: italic;
+  max-width: 62ch;
+}
+
+.track-by {
+  margin-top: 0.45rem;
+  font-size: var(--t-sm);
+  color: var(--ink-faint);
+}
+
+/* The promise itself. The date is the loudest thing in the panel until it is
+   missed, at which point the lateness takes over. */
+.promise {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.promise-date {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.4rem;
+}
+
+.promise-label {
+  font-size: var(--t-sm);
+  color: var(--ink-faint);
+}
+
+.promise-date strong {
+  font-family: 'Bricolage Grotesque', sans-serif;
+  font-size: var(--t-xl);
+  letter-spacing: -0.02em;
+}
+
+.promise-due {
+  padding: 0.1rem 0.42rem;
+  border-radius: var(--r-chip);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  font-size: var(--t-xs);
+  color: var(--ink-soft);
+}
+
+.promise[data-late='yes'] .promise-due {
+  background: var(--bad-wash);
+  border-color: transparent;
+  color: var(--bad);
+  font-weight: 600;
+}
+
+.promise[data-late='yes'] .promise-date strong {
+  color: var(--bad);
+}
+
+/* --------------------------------------------------------------------------
+   Verification - the week the report belongs to the people who raised it
+   -------------------------------------------------------------------------- */
+
+.verify {
+  margin-top: 0.9rem;
+  padding-top: 0.9rem;
+  border-top: 1px solid var(--line);
+}
+
+.verify-head {
+  font-size: var(--t-md);
+  font-weight: 500;
+  margin-bottom: 0.7rem;
+}
+
+.verify-bar {
+  display: flex;
+  height: 8px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--line);
+}
+
+.verify-yes {
+  background: var(--good);
+  transition: width 0.4s var(--ease);
+}
+
+.verify-no {
+  background: var(--bad);
+  transition: width 0.4s var(--ease);
+}
+
+.verify-tally {
+  margin-top: 0.5rem;
+  font-size: var(--t-sm);
+  color: var(--ink-faint);
+}
+
+.verify-tally strong {
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.verify-sep {
+  margin: 0 0.42rem;
+  opacity: 0.5;
+}
+
+.verify-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  margin-top: 0.85rem;
+}
+
+/* Two equal choices. Neither is styled as the primary action: the whole point
+   of the window is that the answer is not already decided. */
+.verify-btn {
+  border-color: var(--good);
+  color: var(--good);
+}
+
+.verify-btn:hover:not(:disabled) {
+  background: var(--good-wash);
+}
+
+.verify-btn.is-chosen {
+  background: var(--good);
+  border-color: var(--good);
+  color: #fff;
+}
+
+.verify-btn-no {
+  border-color: var(--bad);
+  color: var(--bad);
+}
+
+.verify-btn-no:hover:not(:disabled) {
+  background: var(--bad-wash);
+}
+
+.verify-btn-no.is-chosen {
+  background: var(--bad);
+  border-color: var(--bad);
+  color: #fff;
+}
+
+.verify-changed,
+.verify-locked {
+  font-size: var(--t-sm);
+  color: var(--ink-faint);
+}
+
+.verify-locked {
+  margin-top: 0.8rem;
+}
+
+/* --------------------------------------------------------------------------
+   The one row in the feed that asks the reader for something
+   -------------------------------------------------------------------------- */
+
+.entry-ask {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  width: 100%;
+  margin-top: 0.7rem;
+  padding: 0.5rem 0.7rem;
+  border: 1px solid color-mix(in srgb, var(--signal) 35%, transparent);
+  border-radius: var(--r-input);
+  background: var(--signal-wash);
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--t-sm);
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.16s var(--ease), border-color 0.16s var(--ease);
+}
+
+.entry-ask:hover {
+  background: color-mix(in srgb, var(--signal) 20%, transparent);
+  border-color: var(--signal);
+}
+
+.entry-ask-dot {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--signal);
+  animation: pulse 2.4s var(--ease) infinite;
+}
+
+/* --------------------------------------------------------------------------
+   Motion
+   -------------------------------------------------------------------------- */
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.45;
+    transform: scale(0.8);
+  }
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes pop {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes shimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   Small screens
+   -------------------------------------------------------------------------- */
+
+@media (max-width: 34rem) {
+  .topbar-inner {
+    padding: 0.7rem 1rem;
+    gap: 0.6rem;
+  }
+
+  /* The standing line is the first thing to go: the numbers are repeated in
+     the standing card, and the actions need the room. */
+  .standing-line {
+    display: none;
+  }
+
+  .topbar-actions {
+    gap: 0.4rem;
+  }
+
+  .board {
+    padding: 1rem 0.85rem 4rem;
+  }
+
+  .entry {
+    grid-template-columns: 3.4rem minmax(0, 1fr);
+    gap: 0.7rem;
+    padding: 0.9rem 0.9rem 0.9rem 0.7rem;
+  }
+
+  .backing-count {
+    font-size: var(--t-xl);
+  }
+
+  .vote {
+    width: 2.2rem;
+  }
+
+  .detail,
+  .discussion {
+    padding: 1.1rem;
+  }
+
+  .detail-title {
+    font-size: var(--t-xl);
+  }
+
+  .status-note,
+  .detail-strip .btn-quiet {
+    margin-left: 0;
+    text-align: left;
+  }
+
+  .dialog {
+    padding: 1.25rem;
+  }
+}

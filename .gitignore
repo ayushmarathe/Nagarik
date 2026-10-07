@@ -1,0 +1,23 @@
+# Build output
+target/
+dist/
+build/
+
+# Dependencies
+node_modules/
+
+# Local database
+backend/data/
+
+# Editors
+.idea/
+.vscode/
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
