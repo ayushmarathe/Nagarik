@@ -85,6 +85,28 @@ public class Issue {
     @Column(name = "comment_count", nullable = false)
     private int commentCount = 0;
 
+    /**
+     * How many photos or videos are on this report, kept here for the same
+     * reason the other two counts are: the feed shows "3 photos" on every card
+     * and counting rows per report would be one query per card.
+     *
+     * The explicit columnDefinition is load-bearing, unlike the two counts
+     * above. Those were present when the table was first created, so they were
+     * part of a CREATE. This one is added to a table that may already hold
+     * reports, and with ddl-auto=update Hibernate would emit
+     *
+     *     alter table issue add column attachment_count integer not null
+     *
+     * which Postgres refuses, because it has no value to put in the existing
+     * rows. Hibernate logs that failure and carries on starting, so the
+     * application comes up healthy and then answers 500 to every read of the
+     * feed - the column the query selects does not exist. Naming the default
+     * here makes the ALTER valid whether the table is empty or not, which is
+     * why verify_quorum, confirmed_count and denied_count below do the same.
+     */
+    @Column(name = "attachment_count", nullable = false, columnDefinition = "integer not null default 0")
+    private int attachmentCount = 0;
+
     // ---- What the council has promised ------------------------------------
 
     /**
@@ -228,6 +250,14 @@ public class Issue {
 
     public void setCommentCount(int commentCount) {
         this.commentCount = commentCount;
+    }
+
+    public int getAttachmentCount() {
+        return attachmentCount;
+    }
+
+    public void setAttachmentCount(int attachmentCount) {
+        this.attachmentCount = attachmentCount;
     }
 
     public LocalDate getEtaDate() {

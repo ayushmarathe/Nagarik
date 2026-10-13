@@ -1,4 +1,14 @@
-const BASE = 'https://nagarik-v6jl.onrender.com/api';
+/**
+ * Relative on purpose.
+ *
+ * In development Vite proxies /api to Spring Boot on port 8080, so the browser
+ * only ever talks to one origin and no CORS preflight happens. In production the
+ * built files and the API sit behind the same host, so the same path keeps
+ * working. Hardcoding an absolute backend URL here is what breaks that: it ties
+ * the bundle to one deployment and means every local run talks to the remote
+ * database.
+ */
+const BASE = '/api';
 
 const TOKEN_KEY = 'nagarik.token';
 
@@ -101,8 +111,68 @@ async function request(path, { method = 'GET', body } = {}) {
   return response.json();
 }
 
-function query(params) {
-  const search = new URLSearchParams();
+/**
+ * Uploads one file as multipart/form-data.
+ *
+ * Separate from request() for one specific reason: the Content-Type of a
+ * multipart body has to carry the boundary the browser generated, so the header
+ * must be left unset and allowed to be filled in. Setting it by hand - which
+ * request() does for every JSON call - produces a body the server cannot parse,
+ * and the failure looks like a server bug rather than a client one.
+ */
+async function upload(path, file) {
+  const form = new FormData();
+  form.append('file', file);
+
+  const headers = {};
+  const sent = token;
+  if (sent) headers.Authorization = `Bearer ${sent}`;
+
+  let response;
+  try {
+    response = await fetch(BASE + path, { method: 'POST', headers, body: form });
+  } catch {
+    throw Object.assign(new Error('Cannot reach the server. Is the backend running?'), {
+      status: 0,
+    });
+  }
+
+  if (response.status === 401 && sent) {
+    setToken(null);
+    onSessionLost();
+  }
+
+  if (!response.ok) {
+    let message = 'That file could not be uploaded.';
+    try {
+      const data = await response.json();
+      if (data.message) message = data.message;
+    } catch {
+      // No JSON body - a 413 from a proxy, for instance. Default stands.
+    }
+    throw Object.assign(new Error(message), { status: response.status });
+  }
+
+  return response.json();
+}
+
+/**
+ * Turns the server-relative media path on an attachment into something the
+ * browser can load.
+ *
+ * The server sends "/api/attachments/12/file" - correct on its own origin, and
+ * wrong here, because BASE points at a different host. Joining it onto the API
+ * origin rather than the page origin is what makes the gallery work both in
+ * local development and against the deployed backend.
+ */
+export function mediaUrl(path) {
+  if (!path) return '';
+  if (/^https?:\/\//i.test(path)) return path;
+  const origin = BASE.replace(/\/api\/?$/, '');
+  return origin + path;
+}
+
+function query(params) {  const search = new URLSearchParams();
   Object.entries(params).forEach(([key, value]) => {
     if (value !== null && value !== undefined && value !== '') search.set(key, value);
   });
@@ -157,6 +227,17 @@ export const api = {
 
   addComment: (issueId, body) =>
     request(`/issues/${issueId}/comments`, { method: 'POST', body: { body } }),
+
+  /**
+   * Photos and video on a report. Public, like the report itself - an anonymous
+   * reader gets the gallery with canDelete false on every entry.
+   */
+  listAttachments: (issueId) => request(`/issues/${issueId}/attachments`),
+
+  /** One file at a time, so a part-failed batch still leaves what succeeded. */
+  addAttachment: (issueId, file) => upload(`/issues/${issueId}/attachments`, file),
+
+  removeAttachment: (id) => request(`/attachments/${id}`, { method: 'DELETE' }),
 };
 
 /**

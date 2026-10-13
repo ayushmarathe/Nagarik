@@ -212,20 +212,51 @@ function Shell() {
     openReportForm();
   }
 
-  async function createIssue(values) {
+  async function createIssue(values, onProgress, files = []) {
     // The form only opens for somebody signed in, so this is a guard rather
     // than a prompt. Throwing keeps the message inside the form.
     if (!signedIn) throw new Error('Sign in before posting a report.');
 
     const created = await api.createIssue(values);
+
+    // Files follow the report, one at a time. Sequential rather than parallel
+    // on purpose: six videos at once on a domestic connection starves them all,
+    // and a serial loop can report honest progress.
+    //
+    // A failed upload does not undo the report. The text is the thing that
+    // matters and it is already saved - losing it because the fourth photo
+    // failed would be the wrong trade. The person is told which ones did not
+    // make it and can add them from the report itself.
+    const failed = [];
+    for (let i = 0; i < files.length; i += 1) {
+      if (onProgress) onProgress(i + 1, files.length);
+      try {
+        await api.addAttachment(created.id, files[i]);
+      } catch (problem) {
+        failed.push(problem.message);
+      }
+    }
+
     setReporting(false);
-    pushToast('Your report is on the board.', 'good');
+
+    if (failed.length === 0) {
+      pushToast('Your report is on the board.', 'good');
+    } else {
+      pushToast(
+        `Your report is on the board, but ${failed.length} file${
+          failed.length === 1 ? '' : 's'
+        } did not upload. ${failed[0]}`,
+        'warn',
+      );
+    }
+
     // A new locality should appear in the picker straight away.
     api.areas().then(setAreas).catch(() => {});
     await loadFeed(0);
     // A brand new report has no backing yet, so it would land at the bottom of
     // the feed. Open it instead, so posting visibly leads somewhere.
     setOpenId(created.id);
+    return created;
   }
 
   async function castVote(issue) {

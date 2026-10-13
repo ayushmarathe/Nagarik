@@ -59,6 +59,11 @@ export default function IssueRow({ issue, index = 0, busy, onToggleVote, onOpen 
           )}
 
           <span className="entry-where">{issue.area}</span>
+          {issue.attachmentCount > 0 && (
+            <span className="entry-media">
+              {issue.attachmentCount === 1 ? '1 photo or video' : `${issue.attachmentCount} photos or videos`}
+            </span>
+          )}
           <span className="entry-replies">
             {issue.commentCount === 1 ? '1 reply' : `${issue.commentCount} replies`}
           </span>

@@ -1,12 +1,15 @@
 import { useState } from 'react';
+import MediaPicker from './MediaPicker.jsx';
 
 const EMPTY = { title: '', description: '', category: '', area: '' };
 
 export default function ReportForm({ categories, onSubmit, onCancel }) {
   const [values, setValues] = useState(EMPTY);
+  const [files, setFiles] = useState([]);
   const [fields, setFields] = useState({});
   const [error, setError] = useState(null);
   const [submitting, setSubmitting] = useState(false);
+  const [stage, setStage] = useState(null);
 
   function update(key, value) {
     setValues((current) => ({ ...current, [key]: value }));
@@ -29,16 +32,30 @@ export default function ReportForm({ categories, onSubmit, onCancel }) {
     setSubmitting(true);
     setError(null);
     setFields({});
+    setStage(null);
 
     try {
-      await onSubmit(values);
+      // The report goes first and the files follow, because an attachment needs
+      // a report id to belong to.
+      const created = await onSubmit(values, (done, total) => setStage({ done, total }), files);
       setValues(EMPTY);
+      setFiles([]);
+      setStage(null);
+      return created;
     } catch (problem) {
       setError(problem.message);
       setFields(problem.fields ?? {});
+      setStage(null);
+      return null;
     } finally {
       setSubmitting(false);
     }
+  }
+
+  function submitLabel() {
+    if (!submitting) return 'Post report';
+    if (stage) return `Uploading ${stage.done} of ${stage.total}`;
+    return 'Posting';
   }
 
   return (
@@ -139,9 +156,11 @@ export default function ReportForm({ categories, onSubmit, onCancel }) {
           )}
         </div>
 
+        <MediaPicker files={files} onChange={setFiles} disabled={submitting} />
+
         <div className="btn-row">
           <button type="submit" className="btn btn-primary" disabled={submitting}>
-            {submitting ? 'Posting' : 'Post report'}
+            {submitLabel()}
           </button>
           <button type="button" className="btn btn-quiet" onClick={onCancel} disabled={submitting}>
             Cancel

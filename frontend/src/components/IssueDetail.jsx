@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import VoteControl from './VoteControl.jsx';
 import ProgressPanel from './ProgressPanel.jsx';
+import Gallery from './Gallery.jsx';
 import { api } from '../api.js';
 import { useAuth } from '../auth/AuthContext.jsx';
 import { useToast } from './Toasts.jsx';
 import { categoryColor } from '../lib/categories.js';
 import { fullDate, timeAgo } from '../lib/format.js';
+import { ACCEPT, MAX_PER_ISSUE, rejectReason } from '../lib/media.js';
 
 export default function IssueDetail({ issueId, onBack, onChanged }) {
   const { user, signedIn, canModerate, requireUser } = useAuth();
@@ -13,6 +15,7 @@ export default function IssueDetail({ issueId, onBack, onChanged }) {
 
   const [issue, setIssue] = useState(null);
   const [comments, setComments] = useState([]);
+  const [media, setMedia] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [voting, setVoting] = useState(false);
@@ -20,6 +23,8 @@ export default function IssueDetail({ issueId, onBack, onChanged }) {
   const [reply, setReply] = useState('');
   const [replyError, setReplyError] = useState(null);
   const [posting, setPosting] = useState(false);
+  const [adding, setAdding] = useState(false);
+  const [removingMedia, setRemovingMedia] = useState(null);
 
   // Watch the id, not the object: the user object is replaced on every sign-in
   // and rename, which would reload the report each time.
@@ -39,11 +44,19 @@ export default function IssueDetail({ issueId, onBack, onChanged }) {
     setLoading(true);
     setError(null);
 
-    Promise.all([api.getIssue(issueId), api.listComments(issueId)])
-      .then(([loadedIssue, loadedComments]) => {
+    Promise.all([
+      api.getIssue(issueId),
+      api.listComments(issueId),
+      // The gallery is a third call rather than part of the report, so a feed
+      // of twenty cards does not drag twenty galleries along with it. Failing
+      // softly: a report that loads without its photos is still readable.
+      api.listAttachments(issueId).catch(() => []),
+    ])
+      .then(([loadedIssue, loadedComments, loadedMedia]) => {
         if (!active) return;
         setIssue(loadedIssue);
         setComments(loadedComments);
+        setMedia(loadedMedia);
       })
       .catch((problem) => {
         if (active) setError(problem.message);
@@ -57,8 +70,67 @@ export default function IssueDetail({ issueId, onBack, onChanged }) {
     };
   }, [issueId, viewerId]);
 
-  async function castVote() {
-    setVoting(true);
+  /**
+   * Adding evidence to a report that already exists - which is the common case:
+   * somebody reports a pothole from memory and a neighbour walks past it the
+   * next morning with a camera.
+   */
+  async function addMedia(event) {
+    const picked = Array.from(event.target.files ?? []);
+    event.target.value = '';
+    if (picked.length === 0) return;
+
+    if (!requireUser('Sign in to add a photo.')) return;
+
+    const room = MAX_PER_ISSUE - media.length;
+    if (room <= 0) {
+      pushToast(`This report already holds ${MAX_PER_ISSUE} files.`, 'warn');
+      return;
+    }
+
+    setAdding(true);
+    const added = [];
+    let firstProblem = null;
+
+    for (const file of picked.slice(0, room)) {
+      const reason = rejectReason(file);
+      if (reason) {
+        firstProblem = firstProblem ?? reason;
+        continue;
+      }
+      try {
+        added.push(await api.addAttachment(issueId, file));
+      } catch (problem) {
+        firstProblem = firstProblem ?? problem.message;
+      }
+    }
+
+    if (added.length > 0) {
+      setMedia((current) => [...current, ...added]);
+      pushToast(added.length === 1 ? 'Added to the report.' : `${added.length} files added.`, 'good');
+      // The feed shows a count on each card, so it is now stale.
+      onChanged?.();
+    }
+    if (firstProblem) pushToast(firstProblem, 'warn');
+
+    setAdding(false);
+  }
+
+  async function removeMedia(item) {
+    setRemovingMedia(item.id);
+    try {
+      await api.removeAttachment(item.id);
+      setMedia((current) => current.filter((entry) => entry.id !== item.id));
+      pushToast('Removed.', 'good');
+      onChanged?.();
+    } catch (problem) {
+      pushToast(problem.message, 'warn');
+    } finally {
+      setRemovingMedia(null);
+    }
+  }
+
+  async function castVote() {    setVoting(true);
     try {
       const result = await api.toggleVote(issueId);
       setIssue((current) =>
@@ -182,6 +254,26 @@ export default function IssueDetail({ issueId, onBack, onChanged }) {
         </div>
 
         <p className="detail-body">{issue.description}</p>
+
+        <Gallery items={media} onRemove={removeMedia} busyId={removingMedia} />
+
+        <div className="media-add">
+          <label className="btn btn-quiet btn-sm media-add-btn">
+            {adding ? 'Uploading' : media.length === 0 ? 'Add a photo or video' : 'Add another'}
+            <input
+              type="file"
+              accept={ACCEPT}
+              multiple
+              disabled={adding || media.length >= MAX_PER_ISSUE}
+              onChange={addMedia}
+            />
+          </label>
+          <span className="media-add-hint">
+            {media.length >= MAX_PER_ISSUE
+              ? `This report holds the maximum of ${MAX_PER_ISSUE} files.`
+              : 'A photo makes a report much harder to leave alone.'}
+          </span>
+        </div>
 
         {error && (
           <p className="notice" role="alert">

@@ -81,11 +81,21 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/categories", "/api/statuses").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/issues/*/comments").permitAll()
 
+                        // Photos and video on a report are as public as the
+                        // report itself. The bytes are served from
+                        // /api/attachments/*/file, which is listed separately
+                        // because a file keeps one URL even though its
+                        // collection hangs off an issue.
+                        .requestMatchers(HttpMethod.GET, "/api/issues/*/attachments").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/attachments/*/file").permitAll()
+
                         // Everything that writes needs an account.
                         .requestMatchers(HttpMethod.POST, "/api/issues").authenticated()
                         .requestMatchers(HttpMethod.POST, "/api/issues/*/vote").authenticated()
                         .requestMatchers(HttpMethod.POST, "/api/issues/*/comments").authenticated()
                         .requestMatchers(HttpMethod.POST, "/api/issues/*/confirm").authenticated()
+                        .requestMatchers(HttpMethod.POST, "/api/issues/*/attachments").authenticated()
+                        .requestMatchers(HttpMethod.DELETE, "/api/attachments/*").authenticated()
                         .requestMatchers("/api/auth/me").authenticated()
 
                         // The dashboard, and every action that changes what the

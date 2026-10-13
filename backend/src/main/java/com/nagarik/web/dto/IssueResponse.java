@@ -30,6 +30,14 @@ public record IssueResponse(
         Instant createdAt,
         int voteCount,
         int commentCount,
+
+        /**
+         * How many photos or videos are attached. Only the count travels with
+         * the report; the gallery itself is a separate call to
+         * /api/issues/{id}/attachments, exactly as the discussion is, so a feed
+         * of twenty cards does not carry twenty galleries nobody has opened.
+         */
+        int attachmentCount,
         boolean votedByMe,
 
         // What has been promised about fixing it.

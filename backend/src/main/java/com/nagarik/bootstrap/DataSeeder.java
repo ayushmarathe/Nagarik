@@ -1,18 +1,22 @@
 package com.nagarik.bootstrap;
 
 import com.nagarik.domain.AppUser;
+import com.nagarik.domain.Attachment;
 import com.nagarik.domain.Category;
 import com.nagarik.domain.Comment;
 import com.nagarik.domain.Confirmation;
 import com.nagarik.domain.Issue;
 import com.nagarik.domain.IssueStatus;
+import com.nagarik.domain.MediaKind;
 import com.nagarik.domain.Role;
 import com.nagarik.domain.Vote;
 import com.nagarik.repo.AppUserRepository;
+import com.nagarik.repo.AttachmentRepository;
 import com.nagarik.repo.CommentRepository;
 import com.nagarik.repo.ConfirmationRepository;
 import com.nagarik.repo.IssueRepository;
 import com.nagarik.repo.VoteRepository;
+import com.nagarik.service.MediaStore;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.CommandLineRunner;
@@ -20,6 +24,15 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
+import javax.imageio.ImageIO;
+import java.awt.Color;
+import java.awt.Font;
+import java.awt.Graphics2D;
+import java.awt.RenderingHints;
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -84,17 +97,23 @@ public class DataSeeder implements CommandLineRunner {
     private final VoteRepository votes;
     private final CommentRepository comments;
     private final ConfirmationRepository confirmations;
+    private final AttachmentRepository attachments;
+    private final MediaStore media;
     private final PasswordEncoder encoder;
 
     public DataSeeder(AppUserRepository users, IssueRepository issues,
                       VoteRepository votes, CommentRepository comments,
                       ConfirmationRepository confirmations,
+                      AttachmentRepository attachments,
+                      MediaStore media,
                       PasswordEncoder encoder) {
         this.users = users;
         this.issues = issues;
         this.votes = votes;
         this.comments = comments;
         this.confirmations = confirmations;
+        this.attachments = attachments;
+        this.media = media;
         this.encoder = encoder;
     }
 
@@ -121,7 +140,7 @@ public class DataSeeder implements CommandLineRunner {
 
         // -- Nobody has picked these up yet. The moderator's inbox. ----------
 
-        seed(residents.get(3), Category.ELECTRICITY, 2,
+        Issue sparks = seed(residents.get(3), Category.ELECTRICITY, 2,
                 "Transformer by the water tank sparks every evening",
                 "Sector 4, beside the vegetable market",
                 "Around 7pm it starts crackling and throwing sparks onto the footpath below. "
@@ -132,7 +151,7 @@ public class DataSeeder implements CommandLineRunner {
                 "I have the junior engineer's number from a previous complaint. Sharing it in the group.",
                 "Please put a barricade under it at least until someone comes. Somebody is going to get hurt.");
 
-        seed(residents.get(27), Category.ROADS, 5,
+        Issue pothole = seed(residents.get(27), Category.ROADS, 5,
                 "Pothole at the school crossing is deep enough to throw a scooter",
                 "Station Road, outside the girls' school gate",
                 "It has been growing since the rain and is now about a foot deep, right where "
@@ -143,7 +162,7 @@ public class DataSeeder implements CommandLineRunner {
                 "Photos from this morning show it has widened again after last night's rain.",
                 "The school has written to the ward twice. Happy to add our names to a third letter.");
 
-        seed(residents.get(55), Category.WATER, 3,
+        Issue brown = seed(residents.get(55), Category.WATER, 3,
                 "Supply runs brown for the first ten minutes every morning",
                 "Ward 12, Ganga Nagar",
                 "It clears if you let it run, but nobody should have to pour away twenty litres "
@@ -293,7 +312,29 @@ public class DataSeeder implements CommandLineRunner {
         resolve(cuts, moderator, 30, 19, 12, 4, 1, residents,
                 "Faulty section of the feeder replaced.");
 
+        // -- Sample photos. ---------------------------------------------------
+        //
+        // Last, deliberately: the stage helpers above save the issue several
+        // times each, and attaching a photo writes the attachment count onto the
+        // same row. Doing this at the end means nothing overwrites it afterwards.
+        //
+        // Who uploaded what is varied on purpose. Most are from the resident who
+        // raised the report, two are from the moderator documenting the work, and
+        // one is from a different resident entirely - which is the case the
+        // permission rule exists for: anyone signed in may add evidence, only the
+        // uploader or a moderator may take it down.
+        photo(pothole, pothole.getAuthor(), "Pothole at the school crossing");
+        photo(pothole, residents.get(31), "Same pothole after Tuesday's rain");
+        photo(sparks, sparks.getAuthor(), "Transformer by the water tank");
+        photo(brown, brown.getAuthor(), "First water of the morning");
+        photo(manhole, manhole.getAuthor(), "Open manhole at the junction");
+        photo(manhole, moderator, "Barricade placed by the ward");
+        photo(lights, moderator, "Contractor replacing the fittings");
+        photo(bins, bins.getAuthor(), "Bins at the park gate");
+        photo(drain, drain.getAuthor(), "Drain overflowing across the footpath");
+
         log.info("Seeded {} reports and {} residents.", issues.count(), users.count());
+        log.info("Seeded {} sample photos into {}", attachments.count(), media.getRoot());
         log.info("Demo logins - moderator: {} / {}, resident: {} / {}",
                 MODERATOR_EMAIL, DEMO_PASSWORD,
                 residents.get(0).getEmail(), DEMO_PASSWORD);
@@ -324,9 +365,146 @@ public class DataSeeder implements CommandLineRunner {
         return created;
     }
 
+    // ---- Sample photos ----------------------------------------------------
+
+    /** Matches the category colours in styles.css, so a seeded photo looks like
+     *  it belongs to the report it is on rather than to a stock library. */
+    private static Color tintFor(Category category) {
+        return switch (category) {
+            case ELECTRICITY -> new Color(0xD1, 0x60, 0x3D);
+            case WATER -> new Color(0x2B, 0x7F, 0xB8);
+            case ROADS -> new Color(0x7A, 0x66, 0x98);
+            case DRAINAGE -> new Color(0x3F, 0x8F, 0x7B);
+            case GARBAGE -> new Color(0x8A, 0x7A, 0x35);
+            case STREETLIGHT -> new Color(0xC0, 0x8A, 0x2E);
+            case OTHER -> new Color(0x6B, 0x7F, 0x85);
+        };
+    }
+
     /**
-     * One report, its backing and its discussion. Always lands as Reported;
-     * anything further along is applied afterwards by the stage helpers, so the
+     * Draws a stand-in photo and attaches it to a report.
+     *
+     * Generated rather than shipped as files for two reasons: a repository for a
+     * college project should not carry a megabyte of stock JPEGs, and a seeded
+     * image that is obviously a placeholder is honest - nobody demonstrating
+     * this can mistake it for a real photograph of a real pothole, which they
+     * could if it were a stock photo.
+     *
+     * It goes through MediaStore rather than writing to disk directly, so the
+     * seeded rows are indistinguishable from uploaded ones: same naming, same
+     * directory, same sniffing. If the write fails the report is still fine, so
+     * this logs and moves on rather than aborting a seed that is otherwise done.
+     */
+    private void photo(Issue issue, AppUser uploader, String caption) {
+        try {
+            byte[] bytes = drawSample(issue.getCategory(), caption);
+
+            MediaStore.Sniffed sniffed = media.sniff(bytes);
+            if (sniffed == null) {
+                // Would mean ImageIO produced something that is not a PNG,
+                // which cannot happen - but silently storing an unreadable
+                // attachment would be worse than noticing.
+                log.warn("Skipped a sample photo: the generated bytes did not sniff as an image.");
+                return;
+            }
+
+            int[] size = media.imageDimensions(bytes);
+            String storedName = media.write(bytes, sniffed);
+
+            attachments.save(new Attachment(
+                    issue,
+                    uploader,
+                    MediaKind.IMAGE,
+                    sniffed.contentType(),
+                    bytes.length,
+                    storedName,
+                    caption.toLowerCase().replace(' ', '-') + ".png",
+                    size == null ? null : size[0],
+                    size == null ? null : size[1]));
+
+            issue.setAttachmentCount((int) attachments.countByIssueId(issue.getId()));
+            issues.save(issue);
+        } catch (RuntimeException e) {
+            log.warn("Could not attach a sample photo to \"{}\": {}", issue.getTitle(), e.getMessage());
+        }
+    }
+
+    /**
+     * A 1200x800 PNG: the category colour, a diagonal band to stop it reading as
+     * a flat swatch, the caption, and a line making clear it is sample data.
+     *
+     * Headless-safe. Spring Boot sets java.awt.headless=true, which BufferedImage
+     * and ImageIO are fine with - they need no display, only the rasteriser.
+     */
+    private byte[] drawSample(Category category, String caption) {
+        int width = 1200;
+        int height = 800;
+
+        BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
+        Graphics2D g = image.createGraphics();
+        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+
+        Color tint = tintFor(category);
+        Color deep = tint.darker().darker();
+
+        g.setColor(deep);
+        g.fillRect(0, 0, width, height);
+
+        // A wide diagonal in the category colour. Enough shape that a gallery of
+        // six of these does not look like six identical rectangles.
+        g.setColor(tint);
+        g.fillPolygon(
+                new int[] { 0, width, width, 0 },
+                new int[] { height - 220, height - 480, height, height },
+                4);
+
+        g.setColor(new Color(255, 255, 255, 28));
+        g.fillOval(width - 360, -140, 520, 520);
+
+        g.setColor(Color.WHITE);
+        g.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 54));
+        g.drawString(category.getLabel(), 72, 140);
+
+        g.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 38));
+        int y = 230;
+        for (String line : wrap(caption, 36)) {
+            g.drawString(line, 72, y);
+            y += 54;
+        }
+
+        g.setColor(new Color(255, 255, 255, 190));
+        g.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 26));
+        g.drawString("Sample image generated by the seeder — not a real photograph", 72, height - 56);
+
+        g.dispose();
+
+        try (ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+            ImageIO.write(image, "png", out);
+            return out.toByteArray();
+        } catch (IOException e) {
+            throw new UncheckedIOException("Could not encode a sample photo", e);
+        }
+    }
+
+    /** Greedy wrap, so a long caption does not run off the canvas. */
+    private List<String> wrap(String text, int perLine) {
+        List<String> lines = new ArrayList<>();
+        StringBuilder line = new StringBuilder();
+        for (String word : text.split(" ")) {
+            if (line.length() > 0 && line.length() + 1 + word.length() > perLine) {
+                lines.add(line.toString());
+                line.setLength(0);
+            }
+            if (line.length() > 0) line.append(' ');
+            line.append(word);
+        }
+        if (line.length() > 0) lines.add(line.toString());
+        return lines;
+    }
+
+    /**
+     * One report, its backing and its discussion. Always lands as Reported;     * anything further along is applied afterwards by the stage helpers, so the
      * seeded history reads in the same order it would have happened in.
      *
      * @param daysAgo      how far back to date it, so "newest" has something to sort

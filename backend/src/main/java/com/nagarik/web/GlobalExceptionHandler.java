@@ -1,5 +1,6 @@
 package com.nagarik.web;
 
+import com.nagarik.error.BadRequestException;
 import com.nagarik.error.ConflictException;
 import com.nagarik.error.ForbiddenException;
 import com.nagarik.error.NotFoundException;
@@ -15,6 +16,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -108,6 +110,27 @@ public class GlobalExceptionHandler {
     public ResponseEntity<Map<String, Object>> onConflict(DataIntegrityViolationException exception) {
         String text = "That clashed with something already saved. Try again.";
         return ResponseEntity.status(HttpStatus.CONFLICT).body(message(text));
+    }
+
+    /**
+     * A request refused on its merits - an unsupported file type, a file over
+     * the cap, a seventh attachment on a report that holds six.
+     */
+    @ExceptionHandler(BadRequestException.class)
+    public ResponseEntity<Map<String, Object>> onBadRequest(BadRequestException exception) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(message(exception.getMessage()));
+    }
+
+    /**
+     * Spring's multipart limit, which fires before any controller runs - so
+     * without this the caller gets a 500 with no "message" field and the
+     * interface says "Something went wrong" about a file that was simply too
+     * big. The number here has to track spring.servlet.multipart.max-file-size.
+     */
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<Map<String, Object>> onUploadTooLarge(MaxUploadSizeExceededException exception) {
+        String text = "That file is too large. Photos can be up to 8MB and video up to 40MB.";
+        return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE).body(message(text));
     }
 
     private Map<String, Object> message(String message) {

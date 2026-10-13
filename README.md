@@ -334,6 +334,19 @@ Confirming a fix is on the public controller rather than under `/api/admin` beca
 resident action — the one part of the workflow a moderator cannot do on their own behalf. Who
 may answer is decided by looking for their backing, not by a role.
 
+Attachments are two paths rather than one tree, because they have different owners — the
+collection belongs to a report, a file keeps one URL of its own:
+
+| Method | Path | What it does |
+| --- | --- | --- |
+| `GET` | `/api/issues/{id}/attachments` | The gallery on a report. Public |
+| `POST` | `/api/issues/{id}/attachments` | Attach one file, `multipart/form-data` under `file` |
+| `GET` | `/api/attachments/{id}/file` | The bytes. Public, honours `Range`, `nosniff` |
+| `DELETE` | `/api/attachments/{id}` | Uploader or moderator only |
+
+Only `attachmentCount` travels on the report itself; the gallery is a separate call, exactly as
+the discussion is, so a feed of twenty cards does not carry twenty galleries nobody opened.
+
 An unknown `bucket` falls through to no filter rather than to a 400. The parameter only ever
 narrows a list, so the worst a typo can do is show more than was asked for.
 
@@ -384,9 +397,59 @@ sticky sidebar beside the feed. Below 34rem the spacing tightens. The feed rows 
 single short stagger on load, capped so the last row is not still animating when you reach it,
 and the whole motion budget is switched off under `prefers-reduced-motion`.
 
+## Photos and video
+
+Any signed-in account can attach up to six files to a report — photos to 8MB, video to 40MB.
+Deliberately not restricted to the person who raised it: whoever first typed up a pothole is
+often not the one who later walks past with a clear photo, and the board treats a problem as the
+neighbourhood's rather than the reporter's. Removing a file is narrower, because taking down
+someone else's evidence is a moderation act: the uploader or a moderator only.
+
+Only the metadata goes in the database. The bytes are written under `nagarik.media.root`
+(default `./media`) with names the server generates, and served back from
+`/api/attachments/{id}/file`, which honours `Range` requests so a video can actually be seeked.
+
+Three rules in `MediaStore` are worth knowing before changing anything there:
+
+The file type is decided by reading the first bytes, never from the `Content-Type` header or the
+extension — both come from the caller, so a `.png` that is really an HTML document would
+otherwise be stored as an image and later served back as `text/html`, which is a stored
+scripting hole on our own origin. Accepted: JPEG, PNG, GIF and WebP for photos, MP4 and WebM for
+video. Everything else is refused with a message naming what to use instead.
+
+The name on disk is generated here, never taken from the upload. A caller-supplied filename is
+an instruction about where to write, and `../../../application.properties` is an ordinary string
+until it reaches `resolve()`. The original name is kept for display only.
+
+Size is capped twice — by `spring.servlet.multipart.max-file-size`, which rejects the request
+before any controller runs, and again per kind in `MediaStore`, which is what produces a message
+naming the actual limit. The outer one is the real protection.
+
+**On first run the seeder attaches nine sample photos** across seven of the reports, so the
+gallery, the per-card count and the multi-photo layout all have something in them without you
+uploading anything. They are drawn at startup rather than shipped as files — a category-tinted
+canvas with the caption on it, clearly marked as generated, so nobody demonstrating this mistakes
+one for a real photograph. Two are uploaded as the moderator rather than the resident, which is
+the case the permission rule exists for. Video is not seeded; a valid MP4 cannot be synthesised
+without a library, so attach one by hand to see the player.
+
+**Resetting.** The seeder only runs on an empty issue table, and the files are separate from the
+database, so wiping one without the other leaves orphans:
+
+```
+docker compose down -v      # drops the database
+rm -rf backend/media        # drops the files that belonged to it
+```
+
+**One operational limit.** The files live on local disk. On any host with an ephemeral
+filesystem a redeploy loses them while the rows survive, and those reports then render with
+missing images. Before that matters, either mount a persistent volume and point
+`NAGARIK_MEDIA_ROOT` at it, or move the bytes to object storage and keep only the key in
+`attachment.stored_name`.
+
 ## Not built yet
 
-Photo attachments, map pins, email verification and password reset, a profile page listing your
+Map pins, email verification and password reset, a profile page listing your
 own reports, notifications when a report you backed changes status or opens for checking, and
 moderation of reports that are spam or abusive. Nothing notifies a backer that a window has
 opened, which is the largest gap in the verification loop as it stands — today they find out by

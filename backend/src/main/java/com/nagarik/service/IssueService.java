@@ -597,6 +597,7 @@ public class IssueService {
                 issue.getCreatedAt(),
                 issue.getVoteCount(),
                 issue.getCommentCount(),
+                issue.getAttachmentCount(),
                 votedByMe,
                 issue.getEtaDate(),
                 issue.isOverdue(LocalDate.now()),
